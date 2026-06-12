@@ -126,12 +126,6 @@ jobs:
   # ───────────────────────────────────────────────────────────────────────────
   ui:
     runs-on: ubuntu-latest
-    # NON-BLOCKING: the self-hosted runners have no reachable npm registry, so the
-    # dep install hard-times-out (see issue #2). UI tests pass locally (6/6) and the
-    # end-to-end journey is proven by the rust-workspace L5 STORY. The job uses an
-    # overridable registry and will auto-green once a registry is reachable — REMOVE
-    # this continue-on-error then. Tracked: https://github.com/whatbirdisthat/job-hunter/issues/2
-    continue-on-error: true
     defaults:
       run:
         working-directory: apps/desktop
@@ -139,15 +133,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          # node 20 ships npm 10 — avoids the npm 11 "Exit handler never called"
+          # crash seen on node 24 against the runner's registry (issue #2).
+          node-version: '20'
           cache: npm
           cache-dependency-path: apps/desktop/package-lock.json
-      # npm ci: deterministic install from the committed lockfile. Registry is
-      # overridable via the NPM_REGISTRY repo variable (defaults to the public
-      # registry so forks/GitHub-hosted runners work); this repo sets it to the
-      # internal mirror, since self-hosted runners can't reach public npm.
-      - run: npm ci --no-audit --no-fund --registry "${REG:-https://registry.npmjs.org/}"
-        env:
-          REG: ${{ vars.NPM_REGISTRY }}
+      - run: npm ci
       - name: vitest (review-UI component test)
         run: npm test
