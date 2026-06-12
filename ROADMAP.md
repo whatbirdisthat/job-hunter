@@ -10,7 +10,7 @@ select & reorder evidence (review UI) → render tailored CV PDF + templated cov
 Rust core + jobparse + Tauri/React UI; §A–H algorithms; evidence-ledger guard. CliRenderer behind a
 seam (R7). 100%-of-reachable coverage; acceptance green on synthetic fixtures.
 
-### 2. PDF/DOCX résumé import → master-CV schema ✅ (item-2-resume-import — PR open, awaiting merge)
+### 2. PDF/DOCX résumé import → master-CV schema ✅ (PR #3 merged)
 Deterministic onboarding path R3: parse an existing PDF/DOCX résumé into a NEW canonical master-CV
 document the user reviews (never mutates a loaded one; I1). New crate `crates/cvimport` (depends on
 `crates/core` only): PDF via `pdf-extract`, DOCX via `zip`+`quick-xml` (read) / `docx-rs` (dev-only
@@ -21,7 +21,7 @@ Tauri `import_resume` command + a second onboarding import option in the React U
 100%-of-reachable coverage (P-COV-cvimport-1/2/3); PII-free synthetic fixtures only. Adversarial
 review PASS after one BLOCK round (UTF-8 panic + DOCX decompression-bomb cap + non-vacuous perf gate).
 
-### 3. Applicant Advocate LLM layer ✅ (item-3-advocate-llm — PR open, awaiting merge)
+### 3. Applicant Advocate LLM layer ✅ (PR #4 merged)
 Optional, feature-flagged, evidence-bounded rewrite/draft layer; OFF by default — the deterministic
 path (items 1–2) remains the product without it. New crate `crates/advocate` (depends on `crates/core`
 only, one-way graph): an `AdvocateProvider` trait with a deterministic `StubProvider` (always compiled,
@@ -40,7 +40,7 @@ free-text-PII residual doc, cover-letter single-rewrite). Documented residuals d
 adapter-wiring slice: R-ADV-RES-1 text-faithfulness for live models, R-ADV-RES-2 cited-id parsing,
 R-ADV-RES-3 free-text PII in evidence.
 
-### 4. Capture extension (MV3) + email saved-search ingestion ✅ (item-4-capture-extension — PR open, awaiting merge)
+### 4. Capture extension (MV3) + email saved-search ingestion ✅ (PR #5 merged)
 Two compliant, USER-DRIVEN acquisition paths feeding the SAME strict Normalized Job JSON
 (`doc/schemas/normalized-job.schema.json`) — the first non-Rust (TypeScript) slice. Zero npm deps.
 Deterministic DOM→job and email→job logic lives as PURE `.mjs` cores in `packages/capture-core`
@@ -67,7 +67,7 @@ panic/corrupt on length-changing `to_lowercase`). `extension/` holds only thin M
   fuzzing + a fidelity-overclaim corrected). Residuals deferred: real LinkedIn/Seek DOM fidelity
   (DISCUSS-DOM, synthetic-fixtures bar per R6) and localhost handoff (DISCUSS-HANDOFF).
 
-### 5. Application tracker / CRM ✅ (item-5-tracker-crm — PR open, awaiting merge)
+### 5. Application tracker / CRM ✅ (PR #6 merged)
 The phase-2 workflow layer (ARCHITECTURE.md layer 7), all deterministic + on-device, **no LLM**.
 New crate `crates/tracker` (`aa-tracker`, depends on `crates/core` only — one-way graph) holding
 FOUR PURE, clock-injected cores over a small `Date` value type (Ord/serde; civil-day arithmetic,
@@ -94,7 +94,7 @@ negative self-test); L1–L5 + perf-delta gate (new tracked `doc/perf/desktop-tr
 existing P-COV-1/P-COV-2 classes); synthetic PII-free fixtures only. Spec `doc/spec/item-5-tracker-crm.md`,
 storage decision `doc/design/item-5-storage-decision.md`.
 
-### 6. More CV templates + ATS-readability + keyword-coverage panels ✅ (item-6-templates-ats — PR open, awaiting merge)
+### 6. More CV templates + ATS-readability + keyword-coverage panels ✅ (PR #7 merged)
 Three deterministic capabilities (Typst templates + Rust core + React UI), all read-only/no-stuffing.
 - **Templates:** new single-column, ATS-friendly `templates/cv/compact.typ` (full-width header →
   Summary → Skills as inline `Label: A · B · C` lists, NO rating-dot circles → Experience), the
@@ -121,6 +121,20 @@ Three deterministic capabilities (Typst templates + Rust core + React UI), all r
   `doc/perf/desktop-templates-ats-story-baseline.txt`; 100%-of-reachable coverage (workspace 99.25%, both
   new pure modules 100%, no new pragmas); synthetic PII-free personas only. `ui` job stays
   continue-on-error per issue #2 (UI tests green locally, 24/24). **The backlog is now complete.**
+
+## SURFACED FOLLOW-UPS (next backlog — flagged by the build cycles, not yet built)
+- **Encryption-at-rest storage slice** (DISCUSS-STORAGE, from #5): swap `JsonFileStore` for SQLite +
+  SQLCipher behind the existing `TrackerStore` seam; run SENTINEL `/security-gate`. **Recommended next.**
+- **Live LLM adapter wiring** (from #3): the Ollama/BYO-key adapters are built but uncompiled in the
+  default build; wiring a live adapter must first close R-ADV-RES-1 (text faithfulness) + R-ADV-RES-2
+  (cited-id parsing) — a reviewer KAIZEN tripwire flips review to BLOCK otherwise.
+- **Browser e2e for the extension** (from #4): Playwright journey (popup click → download) before the
+  extension ships to users; plus optional per-site DOM selectors for real LinkedIn/Seek fidelity
+  (DISCUSS-DOM — current bar is synthetic fixtures, R6).
+- **Job-ad dedup + external reminders** (from #5): needs a dedup key in the job schema + an ADR for
+  email/calendar/notification channels.
+- **CI infra:** make the `ui` job blocking once the runners can reach an npm registry (issue #2);
+  `CliRenderer` predictable-temp-name hardening; wire/retire the reserved `job.keywords` field.
 
 ## Constraints (apply to every item)
 - No PII in the repo; synthetic data only in tests/CI (PII firewall).
