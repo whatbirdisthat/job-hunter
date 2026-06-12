@@ -132,8 +132,12 @@ jobs:
           node-version: '24'
           cache: npm
           cache-dependency-path: apps/desktop/package-lock.json
-      # npm ci: deterministic install from the committed lockfile; avoids the
-      # flaky `npm install` "Exit handler never called" path seen on the runner.
-      - run: npm ci --no-audit --no-fund
+      # npm ci: deterministic install from the committed lockfile. Registry is
+      # overridable via the NPM_REGISTRY repo variable (defaults to the public
+      # registry so forks/GitHub-hosted runners work); this repo sets it to the
+      # internal mirror, since self-hosted runners can't reach public npm.
+      - run: npm ci --no-audit --no-fund --registry "${REG:-https://registry.npmjs.org/}"
+        env:
+          REG: ${{ vars.NPM_REGISTRY }}
       - name: vitest (review-UI component test)
         run: npm test
