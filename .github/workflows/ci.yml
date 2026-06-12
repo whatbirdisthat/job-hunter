@@ -130,6 +130,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - run: npm install
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+      # npm ci: deterministic install from the committed lockfile; avoids the
+      # flaky `npm install` "Exit handler never called" path seen on the runner.
+      - run: npm ci --no-audit --no-fund
       - name: vitest (review-UI component test)
         run: npm test
