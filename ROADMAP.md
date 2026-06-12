@@ -122,9 +122,19 @@ Three deterministic capabilities (Typst templates + Rust core + React UI), all r
   new pure modules 100%, no new pragmas); synthetic PII-free personas only. `ui` job stays
   continue-on-error per issue #2 (UI tests green locally, 24/24). **The backlog is now complete.**
 
+## TODO (being built)
+
+### 7. Encryption-at-rest storage (DISCUSS-STORAGE, from #5) · PRIORITY: NOW
+Swap the plaintext `JsonFileStore` for an **encrypted-at-rest** local store behind the EXISTING
+`TrackerStore` seam — SQLite + SQLCipher (or, if SQLCipher tooling is unavailable in the build
+environment, an authenticated-encryption file store: a vetted AEAD like XChaCha20-Poly1305 with a
+key derived via Argon2id from a user passphrase, recorded as the decision). The `crates/tracker` pure
+cores stay IO-free; only the store impl under `apps/desktop/src-tauri` changes. Key handling: never
+log/persist the key in plaintext; zeroize in memory; passphrase-unlock flow in the UI. Migrate any
+existing plaintext store on first unlock. **Run SENTINEL `/security-gate`.** Pin: a tampered/garbage
+ciphertext is rejected (not silently treated as empty); wrong passphrase → typed error, no data leak.
+
 ## SURFACED FOLLOW-UPS (next backlog — flagged by the build cycles, not yet built)
-- **Encryption-at-rest storage slice** (DISCUSS-STORAGE, from #5): swap `JsonFileStore` for SQLite +
-  SQLCipher behind the existing `TrackerStore` seam; run SENTINEL `/security-gate`. **Recommended next.**
 - **Live LLM adapter wiring** (from #3): the Ollama/BYO-key adapters are built but uncompiled in the
   default build; wiring a live adapter must first close R-ADV-RES-1 (text faithfulness) + R-ADV-RES-2
   (cited-id parsing) — a reviewer KAIZEN tripwire flips review to BLOCK otherwise.
