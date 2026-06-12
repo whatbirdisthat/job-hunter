@@ -54,6 +54,9 @@ target/
 /aa-view-test-*.cv.json
 story-perf-baseline.txt
 
+# FOUNDRY agent scratch memory — kept local for cross-cycle continuity, never in the public repo
+.claude/agent-memory/
+
 # OS / editor
 .DS_Store
 Thumbs.db
