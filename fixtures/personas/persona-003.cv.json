@@ -1,0 +1,266 @@
+{
+  "schemaVersion": "1.0.0",
+  "person": {
+    "name": "Quinn Romano",
+    "professionalTitle": "Product Manager",
+    "professionalDescription": "Product manager who turns ambiguous problems into shipped, measured outcomes.",
+    "location": "Sydney, Australia",
+    "email": "quinn-romano@example.com",
+    "phone": "0470 701 604",
+    "linkedin": "linkedin.com/in/quinn-romano",
+    "github": "github.com/quinn-romano",
+    "website": "",
+    "image": ""
+  },
+  "headline": "Product Manager",
+  "summaryVariants": [
+    "Product manager who turns ambiguous problems into shipped, measured outcomes."
+  ],
+  "programmingLanguages": [
+    {
+      "name": "SQL",
+      "proficiency": 4,
+      "aliases": [],
+      "evidenceIds": []
+    },
+    {
+      "name": "Python",
+      "proficiency": 2,
+      "aliases": [],
+      "evidenceIds": []
+    }
+  ],
+  "skills": [
+    {
+      "name": "Product Discovery",
+      "proficiency": 5,
+      "aliases": [],
+      "evidenceIds": []
+    },
+    {
+      "name": "Stakeholder Management",
+      "proficiency": 5,
+      "aliases": [],
+      "evidenceIds": []
+    },
+    {
+      "name": "Roadmapping",
+      "proficiency": 5,
+      "aliases": [],
+      "evidenceIds": []
+    },
+    {
+      "name": "Experimentation",
+      "proficiency": 4,
+      "aliases": [],
+      "evidenceIds": []
+    },
+    {
+      "name": "Analytics",
+      "proficiency": 4,
+      "aliases": [],
+      "evidenceIds": []
+    }
+  ],
+  "toolsTechnologies": [
+    {
+      "name": "Jira",
+      "proficiency": 4,
+      "aliases": [],
+      "evidenceIds": []
+    },
+    {
+      "name": "Amplitude",
+      "proficiency": 4,
+      "aliases": [],
+      "evidenceIds": []
+    },
+    {
+      "name": "Figma",
+      "proficiency": 3,
+      "aliases": [],
+      "evidenceIds": []
+    },
+    {
+      "name": "Looker",
+      "proficiency": 3,
+      "aliases": [],
+      "evidenceIds": []
+    }
+  ],
+  "asAServices": [
+    {
+      "name": "AWS",
+      "proficiency": 2,
+      "aliases": [],
+      "evidenceIds": []
+    }
+  ],
+  "experience": [
+    {
+      "id": "exp_3_0",
+      "jobTitle": "Product Owner",
+      "businessName": "Cobalt Group",
+      "consultancy": "",
+      "location": "Melbourne, Australia",
+      "employmentType": "Client",
+      "startDate": "Apr 2023",
+      "endDate": "Present",
+      "domain": "Fintech",
+      "hide": false,
+      "contact": {
+        "name": "",
+        "email": ""
+      },
+      "tags": [
+        "Kubernetes",
+        "PostgreSQL",
+        "Terraform"
+      ],
+      "achievementsTasks": [
+        {
+          "id": "exp_3_0_b0",
+          "description": "Negotiated scope with engineering to ship an MVP six weeks early",
+          "emphasise": true,
+          "tags": [],
+          "metrics": [],
+          "evidenceStrength": 0.89
+        },
+        {
+          "id": "exp_3_0_b1",
+          "description": "Defined the north-star metric and instrumented the funnel end to end",
+          "emphasise": false,
+          "tags": [],
+          "metrics": [],
+          "evidenceStrength": 0.92
+        }
+      ]
+    },
+    {
+      "id": "exp_3_1",
+      "jobTitle": "Product Manager",
+      "businessName": "Helios Digital",
+      "consultancy": "",
+      "location": "Melbourne, Australia",
+      "employmentType": "Employer",
+      "startDate": "Aug 2020",
+      "endDate": "Mar 2023",
+      "domain": "Healthtech",
+      "hide": false,
+      "contact": {
+        "name": "",
+        "email": ""
+      },
+      "tags": [
+        "Kafka",
+        "Go",
+        "React",
+        "Python",
+        "TypeScript"
+      ],
+      "achievementsTasks": [
+        {
+          "id": "exp_3_1_b0",
+          "description": "Defined the north-star metric and instrumented the funnel end to end",
+          "emphasise": true,
+          "tags": [],
+          "metrics": [],
+          "evidenceStrength": 0.66
+        },
+        {
+          "id": "exp_3_1_b1",
+          "description": "Ran a discovery program that killed two low-value bets before build",
+          "emphasise": false,
+          "tags": [],
+          "metrics": [],
+          "evidenceStrength": 0.98
+        },
+        {
+          "id": "exp_3_1_b2",
+          "description": "Negotiated scope with engineering to ship an MVP six weeks early",
+          "emphasise": false,
+          "tags": [],
+          "metrics": [],
+          "evidenceStrength": 0.63
+        }
+      ]
+    },
+    {
+      "id": "exp_3_2",
+      "jobTitle": "Product Manager",
+      "businessName": "Acme Systems",
+      "consultancy": "",
+      "location": "Melbourne, Australia",
+      "employmentType": "Employer",
+      "startDate": "Sep 2017",
+      "endDate": "Jun 2020",
+      "domain": "GovTech",
+      "hide": false,
+      "contact": {
+        "name": "",
+        "email": ""
+      },
+      "tags": [
+        "GraphQL",
+        "Kafka",
+        "CI/CD",
+        "React",
+        "Python"
+      ],
+      "achievementsTasks": [
+        {
+          "id": "exp_3_2_b0",
+          "description": "Owned a roadmap that grew activated users 28% over three quarters",
+          "emphasise": true,
+          "tags": [],
+          "metrics": [
+            "28%"
+          ],
+          "evidenceStrength": 0.63
+        },
+        {
+          "id": "exp_3_2_b1",
+          "description": "Stood up an experimentation cadence of two A/B tests per sprint",
+          "emphasise": false,
+          "tags": [],
+          "metrics": [],
+          "evidenceStrength": 0.64
+        },
+        {
+          "id": "exp_3_2_b2",
+          "description": "Ran a discovery program that killed two low-value bets before build",
+          "emphasise": false,
+          "tags": [],
+          "metrics": [],
+          "evidenceStrength": 0.62
+        }
+      ]
+    }
+  ],
+  "projects": [],
+  "education": [
+    {
+      "id": "edu_3_0",
+      "institution": "Monash University",
+      "qualification": "BSc Computer Science",
+      "field": "Computing",
+      "startDate": "Feb 2014",
+      "endDate": "Nov 2017"
+    }
+  ],
+  "certifications": [],
+  "awards": [],
+  "preferences": {
+    "roleTypes": [
+      "Product Manager"
+    ],
+    "industries": [
+      "SaaS",
+      "Fintech"
+    ],
+    "locations": [
+      "Remote",
+      "Melbourne, Australia"
+    ]
+  }
+}

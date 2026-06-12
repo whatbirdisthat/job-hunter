@@ -1,0 +1,344 @@
+{
+  "schemaVersion": "1.0.0",
+  "person": {
+    "name": "Jordan Delacroix",
+    "professionalTitle": "Frontend Engineer",
+    "professionalDescription": "Frontend engineer who cares about accessibility, performance budgets, and design-system rigour.",
+    "location": "Brisbane, Australia",
+    "email": "jordan-delacroix@example.com",
+    "phone": "0489 712 414",
+    "linkedin": "linkedin.com/in/jordan-delacroix",
+    "github": "github.com/jordan-delacroix",
+    "website": "",
+    "image": ""
+  },
+  "headline": "Frontend Engineer",
+  "summaryVariants": [
+    "Frontend engineer who cares about accessibility, performance budgets, and design-system rigour."
+  ],
+  "programmingLanguages": [
+    {
+      "name": "TypeScript",
+      "proficiency": 5,
+      "aliases": [],
+      "evidenceIds": []
+    },
+    {
+      "name": "JavaScript",
+      "proficiency": 5,
+      "aliases": [],
+      "evidenceIds": []
+    },
+    {
+      "name": "HTML",
+      "proficiency": 5,
+      "aliases": [],
+      "evidenceIds": []
+    },
+    {
+      "name": "CSS",
+      "proficiency": 5,
+      "aliases": [],
+      "evidenceIds": []
+    },
+    {
+      "name": "Python",
+      "proficiency": 2,
+      "aliases": [],
+      "evidenceIds": []
+    }
+  ],
+  "skills": [
+    {
+      "name": "Accessibility (WCAG)",
+      "proficiency": 4,
+      "aliases": [],
+      "evidenceIds": []
+    },
+    {
+      "name": "Design Systems",
+      "proficiency": 4,
+      "aliases": [],
+      "evidenceIds": []
+    },
+    {
+      "name": "Web Performance",
+      "proficiency": 4,
+      "aliases": [],
+      "evidenceIds": []
+    },
+    {
+      "name": "UX Collaboration",
+      "proficiency": 4,
+      "aliases": [],
+      "evidenceIds": []
+    }
+  ],
+  "toolsTechnologies": [
+    {
+      "name": "React",
+      "proficiency": 5,
+      "aliases": [],
+      "evidenceIds": []
+    },
+    {
+      "name": "Vite",
+      "proficiency": 4,
+      "aliases": [],
+      "evidenceIds": []
+    },
+    {
+      "name": "Playwright",
+      "proficiency": 4,
+      "aliases": [],
+      "evidenceIds": []
+    },
+    {
+      "name": "Storybook",
+      "proficiency": 4,
+      "aliases": [],
+      "evidenceIds": []
+    },
+    {
+      "name": "Figma",
+      "proficiency": 3,
+      "aliases": [],
+      "evidenceIds": []
+    }
+  ],
+  "asAServices": [
+    {
+      "name": "Vercel",
+      "proficiency": 4,
+      "aliases": [],
+      "evidenceIds": []
+    },
+    {
+      "name": "Cloudflare",
+      "proficiency": 3,
+      "aliases": [],
+      "evidenceIds": []
+    }
+  ],
+  "experience": [
+    {
+      "id": "exp_2_0",
+      "jobTitle": "Frontend Engineer",
+      "businessName": "Northwind Systems",
+      "consultancy": "",
+      "location": "Sydney, Australia",
+      "employmentType": "Client",
+      "startDate": "Feb 2023",
+      "endDate": "Present",
+      "domain": "Healthtech",
+      "hide": false,
+      "contact": {
+        "name": "",
+        "email": ""
+      },
+      "tags": [
+        "Docker",
+        "gRPC",
+        "Kafka"
+      ],
+      "achievementsTasks": [
+        {
+          "id": "exp_2_0_b0",
+          "description": "Set up visual-regression CI that caught 30+ layout regressions pre-merge",
+          "emphasise": true,
+          "tags": [],
+          "metrics": [],
+          "evidenceStrength": 1
+        },
+        {
+          "id": "exp_2_0_b1",
+          "description": "Drove the component library to WCAG 2.2 AA across 40+ components",
+          "emphasise": false,
+          "tags": [],
+          "metrics": [],
+          "evidenceStrength": 0.67
+        }
+      ]
+    },
+    {
+      "id": "exp_2_1",
+      "jobTitle": "UI Engineer",
+      "businessName": "Brightwater Digital",
+      "consultancy": "",
+      "location": "Canberra, Australia",
+      "employmentType": "Employer",
+      "startDate": "Mar 2021",
+      "endDate": "Jul 2022",
+      "domain": "E-commerce",
+      "hide": false,
+      "contact": {
+        "name": "",
+        "email": ""
+      },
+      "tags": [
+        "Kafka",
+        "Terraform",
+        "AWS",
+        "Kubernetes",
+        "Docker"
+      ],
+      "achievementsTasks": [
+        {
+          "id": "exp_2_1_b0",
+          "description": "Drove the component library to WCAG 2.2 AA across 40+ components",
+          "emphasise": true,
+          "tags": [],
+          "metrics": [],
+          "evidenceStrength": 0.73
+        },
+        {
+          "id": "exp_2_1_b1",
+          "description": "Reduced the main bundle by 220KB via route-level code splitting",
+          "emphasise": false,
+          "tags": [],
+          "metrics": [
+            "220KB"
+          ],
+          "evidenceStrength": 0.87
+        }
+      ]
+    },
+    {
+      "id": "exp_2_2",
+      "jobTitle": "Web Developer",
+      "businessName": "Acme Group",
+      "consultancy": "",
+      "location": "Adelaide, Australia",
+      "employmentType": "Employer",
+      "startDate": "Oct 2018",
+      "endDate": "Mar 2020",
+      "domain": "SaaS",
+      "hide": false,
+      "contact": {
+        "name": "",
+        "email": ""
+      },
+      "tags": [
+        "AWS",
+        "Redis",
+        "Kafka",
+        "GraphQL"
+      ],
+      "achievementsTasks": [
+        {
+          "id": "exp_2_2_b0",
+          "description": "Drove the component library to WCAG 2.2 AA across 40+ components",
+          "emphasise": true,
+          "tags": [],
+          "metrics": [],
+          "evidenceStrength": 0.96
+        },
+        {
+          "id": "exp_2_2_b1",
+          "description": "Rebuilt the checkout flow, lifting mobile conversion by 12%",
+          "emphasise": false,
+          "tags": [],
+          "metrics": [
+            "12%"
+          ],
+          "evidenceStrength": 0.78
+        },
+        {
+          "id": "exp_2_2_b2",
+          "description": "Reduced the main bundle by 220KB via route-level code splitting",
+          "emphasise": false,
+          "tags": [],
+          "metrics": [
+            "220KB"
+          ],
+          "evidenceStrength": 0.66
+        },
+        {
+          "id": "exp_2_2_b3",
+          "description": "Set up visual-regression CI that caught 30+ layout regressions pre-merge",
+          "emphasise": false,
+          "tags": [],
+          "metrics": [],
+          "evidenceStrength": 0.85
+        }
+      ]
+    },
+    {
+      "id": "exp_2_3",
+      "jobTitle": "Software Engineer",
+      "businessName": "Meridian Systems",
+      "consultancy": "via Talent Partners (contract)",
+      "location": "Melbourne, Australia",
+      "employmentType": "Client",
+      "startDate": "Jul 2015",
+      "endDate": "Mar 2018",
+      "domain": "E-commerce",
+      "hide": false,
+      "contact": {
+        "name": "",
+        "email": ""
+      },
+      "tags": [
+        "CI/CD",
+        "gRPC",
+        "Go",
+        "PostgreSQL",
+        "GraphQL"
+      ],
+      "achievementsTasks": [
+        {
+          "id": "exp_2_3_b0",
+          "description": "Reduced the main bundle by 220KB via route-level code splitting",
+          "emphasise": true,
+          "tags": [],
+          "metrics": [
+            "220KB"
+          ],
+          "evidenceStrength": 0.94
+        },
+        {
+          "id": "exp_2_3_b1",
+          "description": "Paired with design to ship a dark-mode theme with zero contrast failures",
+          "emphasise": false,
+          "tags": [],
+          "metrics": [],
+          "evidenceStrength": 0.84
+        },
+        {
+          "id": "exp_2_3_b2",
+          "description": "Drove the component library to WCAG 2.2 AA across 40+ components",
+          "emphasise": false,
+          "tags": [],
+          "metrics": [],
+          "evidenceStrength": 0.74
+        }
+      ]
+    }
+  ],
+  "projects": [],
+  "education": [
+    {
+      "id": "edu_2_0",
+      "institution": "Monash University",
+      "qualification": "BEng (Software)",
+      "field": "Computing",
+      "startDate": "Feb 2014",
+      "endDate": "Nov 2017"
+    }
+  ],
+  "certifications": [],
+  "awards": [],
+  "preferences": {
+    "roleTypes": [
+      "Frontend Engineer"
+    ],
+    "industries": [
+      "SaaS",
+      "Fintech"
+    ],
+    "locations": [
+      "Remote",
+      "Melbourne, Australia"
+    ]
+  }
+}

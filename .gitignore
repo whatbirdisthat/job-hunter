@@ -1,0 +1,56 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# PII FIREWALL — this is a PUBLIC repo. Real career data must NEVER be committed.
+# Anything that could hold a real person's CV, contacts, or credentials is ignored.
+# Fake fixtures live under fixtures/ and are the ONLY CV-shaped data allowed in git.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Real / private user data (runtime + local dev)
+private/
+**/private/
+*.real.json
+*.real.*
+*.local.json
+*.local.*
+master-cv.json
+cv.json
+!fixtures/**/cv.json          # fixtures are synthetic — explicitly allowed
+!**/*.fixture.json
+my-cv.*
+resume.*
+*.resume.json
+
+# Profile images / personal assets
+*.headshot.*
+profile-photo.*
+**/private-assets/
+
+# Secrets & credentials
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+secrets.*
+**/secrets/
+*.sqlite
+*.sqlite3
+*.db
+*.db-cipher
+
+# Build artifacts / deps
+node_modules/
+dist/
+build/
+out/
+target/
+*.tsbuildinfo
+.cache/
+*.pdf
+!doc/**/*.pdf                 # allow documentation PDFs if ever committed deliberately
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp

@@ -1,0 +1,252 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://job-hunter.example/schemas/master-cv.schema.json",
+  "title": "Master CV",
+  "description": "The canonical, immutable source-of-truth for a single person's complete career history. Tailoring produces VIEWS over this document; it is never mutated. Every generated claim in a tailored CV or cover letter must trace back to an evidence id defined here. Derived from the DW_CV data model (Person/WorkExperience/Skill/AchievementTask) and normalized to the conventions in doc/001-design-brief.md. Field names are camelCase.",
+  "type": "object",
+  "required": ["schemaVersion", "person", "experience"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "1.0.0",
+      "description": "Schema version this document conforms to."
+    },
+    "person": { "$ref": "#/$defs/person" },
+    "headline": {
+      "type": "string",
+      "description": "Short professional headline (maps to DW_CV professionalTitle when unset)."
+    },
+    "summaryVariants": {
+      "type": "array",
+      "description": "Reusable summary paragraphs the tailoring engine may select among (deterministic-first). The DW_CV professionalDescription seeds variant 0.",
+      "items": { "type": "string" }
+    },
+    "programmingLanguages": { "$ref": "#/$defs/skillList" },
+    "skills": { "$ref": "#/$defs/skillList" },
+    "toolsTechnologies": { "$ref": "#/$defs/skillList" },
+    "asAServices": {
+      "$ref": "#/$defs/skillList",
+      "description": "Platform/'as-a-service' competencies (AWS, Azure, etc.) — preserves the DW_CV AsAServices category."
+    },
+    "experience": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/experience" }
+    },
+    "projects": { "type": "array", "items": { "$ref": "#/$defs/project" } },
+    "education": { "type": "array", "items": { "$ref": "#/$defs/education" } },
+    "certifications": { "type": "array", "items": { "$ref": "#/$defs/certification" } },
+    "awards": { "type": "array", "items": { "$ref": "#/$defs/award" } },
+    "preferences": { "$ref": "#/$defs/preferences" }
+  },
+
+  "$defs": {
+    "person": {
+      "type": "object",
+      "description": "Personal/contact block. PII — supplied by the user at runtime; left EMPTY in any committed fixture.",
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "professionalTitle": { "type": "string" },
+        "professionalDescription": { "type": "string" },
+        "location": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "linkedin": { "type": "string" },
+        "github": { "type": "string" },
+        "website": { "type": "string" },
+        "image": {
+          "type": "string",
+          "description": "Path or data URI for the profile image. Optional; the classic template renders without it."
+        }
+      }
+    },
+
+    "skillList": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/skill" }
+    },
+
+    "skill": {
+      "type": "object",
+      "required": ["name", "proficiency"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "proficiency": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5,
+          "description": "Self-assessed proficiency on the DW_CV 1–5 scale."
+        },
+        "aliases": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Synonyms used during deterministic skill normalization (e.g. JS -> JavaScript)."
+        },
+        "evidenceIds": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Ids of experience/project/achievement records that substantiate this skill."
+        }
+      }
+    },
+
+    "experience": {
+      "type": "object",
+      "required": ["id", "jobTitle", "businessName", "startDate"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Stable evidence id, e.g. exp_12. Referenced by skills.evidenceIds and tailoring outputs."
+        },
+        "jobTitle": { "type": "string" },
+        "businessName": { "type": "string" },
+        "consultancy": {
+          "type": "string",
+          "description": "Engaging consultancy/agency when the role was delivered through one."
+        },
+        "location": { "type": "string" },
+        "employmentType": {
+          "type": ["string", "null"],
+          "enum": ["Employer", "Client", null],
+          "description": "Preserves the DW_CV EmploymentType enum; null when unspecified."
+        },
+        "startDate": {
+          "type": "string",
+          "description": "Human-format month-year as used in DW_CV, e.g. 'Jul 2023'. Parsing/normalization is the engine's job."
+        },
+        "endDate": {
+          "type": "string",
+          "description": "Same format as startDate, or 'Present'."
+        },
+        "domain": {
+          "type": "string",
+          "description": "Industry/domain label used for domain-alignment scoring."
+        },
+        "hide": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, excluded from rendering (DW_CV Hide flag)."
+        },
+        "contact": {
+          "type": "object",
+          "description": "Reference contact for the role. PII — empty in committed fixtures.",
+          "additionalProperties": false,
+          "properties": {
+            "name": { "type": "string" },
+            "email": { "type": "string" }
+          }
+        },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Technology/keyword tags for this role (DW_CV Tags)."
+        },
+        "achievementsTasks": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/achievement" }
+        }
+      }
+    },
+
+    "achievement": {
+      "type": "object",
+      "required": ["id", "description"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Stable evidence id, e.g. exp_12_b1. The atom of traceability for the evidence ledger."
+        },
+        "description": { "type": "string" },
+        "emphasise": {
+          "type": "boolean",
+          "default": false,
+          "description": "DW_CV Emphasise flag — rendered italic/larger."
+        },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Competency tags (leadership, automation, aws, ...) used for evidence matching."
+        },
+        "metrics": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Quantified outcomes extracted from this bullet, e.g. '30% reduction'. Never invented by the engine."
+        },
+        "evidenceStrength": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "How strongly this bullet substantiates a claim, used in bullet ranking."
+        }
+      }
+    },
+
+    "project": {
+      "type": "object",
+      "required": ["id", "name"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "url": { "type": "string" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "metrics": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+
+    "education": {
+      "type": "object",
+      "required": ["id", "institution"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "institution": { "type": "string" },
+        "qualification": { "type": "string" },
+        "field": { "type": "string" },
+        "startDate": { "type": "string" },
+        "endDate": { "type": "string" }
+      }
+    },
+
+    "certification": {
+      "type": "object",
+      "required": ["id", "name"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "issuer": { "type": "string" },
+        "issued": { "type": "string" },
+        "expires": { "type": "string" }
+      }
+    },
+
+    "award": {
+      "type": "object",
+      "required": ["id", "name"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "issuer": { "type": "string" },
+        "date": { "type": "string" }
+      }
+    },
+
+    "preferences": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Used for fit scoring (location/role/industry alignment) — never rendered onto the CV.",
+      "properties": {
+        "roleTypes": { "type": "array", "items": { "type": "string" } },
+        "industries": { "type": "array", "items": { "type": "string" } },
+        "locations": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

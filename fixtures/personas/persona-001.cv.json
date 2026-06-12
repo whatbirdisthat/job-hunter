@@ -1,0 +1,427 @@
+{
+  "schemaVersion": "1.0.0",
+  "person": {
+    "name": "Devin Voss",
+    "professionalTitle": "Senior Backend Engineer",
+    "professionalDescription": "Backend engineer focused on resilient services, clean domain models, and pragmatic delivery.",
+    "location": "Sydney, Australia",
+    "email": "devin-voss@example.com",
+    "phone": "0481 453 218",
+    "linkedin": "linkedin.com/in/devin-voss",
+    "github": "github.com/devin-voss",
+    "website": "",
+    "image": ""
+  },
+  "headline": "Senior Backend Engineer",
+  "summaryVariants": [
+    "Backend engineer focused on resilient services, clean domain models, and pragmatic delivery."
+  ],
+  "programmingLanguages": [
+    {
+      "name": "Python",
+      "proficiency": 5,
+      "aliases": [],
+      "evidenceIds": []
+    },
+    {
+      "name": "Go",
+      "proficiency": 4,
+      "aliases": [],
+      "evidenceIds": []
+    },
+    {
+      "name": "TypeScript",
+      "proficiency": 4,
+      "aliases": [],
+      "evidenceIds": []
+    },
+    {
+      "name": "SQL",
+      "proficiency": 5,
+      "aliases": [],
+      "evidenceIds": []
+    },
+    {
+      "name": "Rust",
+      "proficiency": 2,
+      "aliases": [],
+      "evidenceIds": []
+    }
+  ],
+  "skills": [
+    {
+      "name": "System Design",
+      "proficiency": 5,
+      "aliases": [],
+      "evidenceIds": []
+    },
+    {
+      "name": "Distributed Systems",
+      "proficiency": 4,
+      "aliases": [],
+      "evidenceIds": []
+    },
+    {
+      "name": "Mentoring",
+      "proficiency": 4,
+      "aliases": [],
+      "evidenceIds": []
+    },
+    {
+      "name": "Incident Response",
+      "proficiency": 4,
+      "aliases": [],
+      "evidenceIds": []
+    }
+  ],
+  "toolsTechnologies": [
+    {
+      "name": "Docker",
+      "proficiency": 5,
+      "aliases": [],
+      "evidenceIds": []
+    },
+    {
+      "name": "Kubernetes",
+      "proficiency": 4,
+      "aliases": [],
+      "evidenceIds": []
+    },
+    {
+      "name": "PostgreSQL",
+      "proficiency": 5,
+      "aliases": [],
+      "evidenceIds": []
+    },
+    {
+      "name": "Kafka",
+      "proficiency": 3,
+      "aliases": [],
+      "evidenceIds": []
+    },
+    {
+      "name": "Terraform",
+      "proficiency": 3,
+      "aliases": [],
+      "evidenceIds": []
+    }
+  ],
+  "asAServices": [
+    {
+      "name": "AWS",
+      "proficiency": 4,
+      "aliases": [],
+      "evidenceIds": []
+    },
+    {
+      "name": "GCP",
+      "proficiency": 3,
+      "aliases": [],
+      "evidenceIds": []
+    },
+    {
+      "name": "Datadog",
+      "proficiency": 3,
+      "aliases": [],
+      "evidenceIds": []
+    }
+  ],
+  "experience": [
+    {
+      "id": "exp_1_0",
+      "jobTitle": "Backend Engineer",
+      "businessName": "Acme Co",
+      "consultancy": "",
+      "location": "Sydney, Australia",
+      "employmentType": "Client",
+      "startDate": "Nov 2022",
+      "endDate": "Present",
+      "domain": "E-commerce",
+      "hide": false,
+      "contact": {
+        "name": "",
+        "email": ""
+      },
+      "tags": [
+        "Terraform",
+        "TypeScript",
+        "PostgreSQL",
+        "Redis",
+        "Python"
+      ],
+      "achievementsTasks": [
+        {
+          "id": "exp_1_0_b0",
+          "description": "Cut p99 API latency by 38% by reworking the caching and query layer",
+          "emphasise": true,
+          "tags": [],
+          "metrics": [
+            "38%"
+          ],
+          "evidenceStrength": 0.84
+        },
+        {
+          "id": "exp_1_0_b1",
+          "description": "Introduced contract tests that eliminated a recurring integration outage class",
+          "emphasise": false,
+          "tags": [],
+          "metrics": [],
+          "evidenceStrength": 0.61
+        },
+        {
+          "id": "exp_1_0_b2",
+          "description": "Mentored four engineers through their first on-call rotations",
+          "emphasise": false,
+          "tags": [],
+          "metrics": [],
+          "evidenceStrength": 0.71
+        }
+      ]
+    },
+    {
+      "id": "exp_1_1",
+      "jobTitle": "Backend Engineer",
+      "businessName": "Meridian Digital",
+      "consultancy": "",
+      "location": "Melbourne, Australia",
+      "employmentType": "Client",
+      "startDate": "Feb 2021",
+      "endDate": "Mar 2022",
+      "domain": "E-commerce",
+      "hide": false,
+      "contact": {
+        "name": "",
+        "email": ""
+      },
+      "tags": [
+        "Docker",
+        "Go",
+        "AWS",
+        "React",
+        "GraphQL"
+      ],
+      "achievementsTasks": [
+        {
+          "id": "exp_1_1_b0",
+          "description": "Led the migration from a monolith to three bounded-context services",
+          "emphasise": true,
+          "tags": [],
+          "metrics": [],
+          "evidenceStrength": 0.94
+        },
+        {
+          "id": "exp_1_1_b1",
+          "description": "Designed and shipped a payments reconciliation service handling 4M events/day",
+          "emphasise": false,
+          "tags": [],
+          "metrics": [
+            "4M"
+          ],
+          "evidenceStrength": 0.8
+        },
+        {
+          "id": "exp_1_1_b2",
+          "description": "Cut p99 API latency by 38% by reworking the caching and query layer",
+          "emphasise": false,
+          "tags": [],
+          "metrics": [
+            "38%"
+          ],
+          "evidenceStrength": 0.68
+        },
+        {
+          "id": "exp_1_1_b3",
+          "description": "Mentored four engineers through their first on-call rotations",
+          "emphasise": false,
+          "tags": [],
+          "metrics": [],
+          "evidenceStrength": 0.71
+        }
+      ]
+    },
+    {
+      "id": "exp_1_2",
+      "jobTitle": "Senior Backend Engineer",
+      "businessName": "Cobalt Group",
+      "consultancy": "",
+      "location": "Melbourne, Australia",
+      "employmentType": "Client",
+      "startDate": "Jun 2018",
+      "endDate": "Jan 2020",
+      "domain": "Fintech",
+      "hide": false,
+      "contact": {
+        "name": "",
+        "email": ""
+      },
+      "tags": [
+        "PostgreSQL",
+        "Terraform",
+        "Redis",
+        "TypeScript"
+      ],
+      "achievementsTasks": [
+        {
+          "id": "exp_1_2_b0",
+          "description": "Introduced contract tests that eliminated a recurring integration outage class",
+          "emphasise": true,
+          "tags": [],
+          "metrics": [],
+          "evidenceStrength": 0.89
+        },
+        {
+          "id": "exp_1_2_b1",
+          "description": "Led the migration from a monolith to three bounded-context services",
+          "emphasise": false,
+          "tags": [],
+          "metrics": [],
+          "evidenceStrength": 0.97
+        },
+        {
+          "id": "exp_1_2_b2",
+          "description": "Mentored four engineers through their first on-call rotations",
+          "emphasise": false,
+          "tags": [],
+          "metrics": [],
+          "evidenceStrength": 0.71
+        }
+      ]
+    },
+    {
+      "id": "exp_1_3",
+      "jobTitle": "Platform Engineer",
+      "businessName": "Cobalt Group",
+      "consultancy": "",
+      "location": "Brisbane, Australia",
+      "employmentType": "Employer",
+      "startDate": "Oct 2015",
+      "endDate": "Mar 2018",
+      "domain": "Healthtech",
+      "hide": false,
+      "contact": {
+        "name": "",
+        "email": ""
+      },
+      "tags": [
+        "Kubernetes",
+        "PostgreSQL",
+        "Redis",
+        "Go",
+        "gRPC"
+      ],
+      "achievementsTasks": [
+        {
+          "id": "exp_1_3_b0",
+          "description": "Mentored four engineers through their first on-call rotations",
+          "emphasise": true,
+          "tags": [],
+          "metrics": [],
+          "evidenceStrength": 0.96
+        },
+        {
+          "id": "exp_1_3_b1",
+          "description": "Designed and shipped a payments reconciliation service handling 4M events/day",
+          "emphasise": false,
+          "tags": [],
+          "metrics": [
+            "4M"
+          ],
+          "evidenceStrength": 0.77
+        },
+        {
+          "id": "exp_1_3_b2",
+          "description": "Introduced contract tests that eliminated a recurring integration outage class",
+          "emphasise": false,
+          "tags": [],
+          "metrics": [],
+          "evidenceStrength": 0.82
+        }
+      ]
+    },
+    {
+      "id": "exp_1_4",
+      "jobTitle": "Backend Engineer",
+      "businessName": "Meridian Labs",
+      "consultancy": "",
+      "location": "Sydney, Australia",
+      "employmentType": "Employer",
+      "startDate": "Jul 2013",
+      "endDate": "Feb 2015",
+      "domain": "GovTech",
+      "hide": false,
+      "contact": {
+        "name": "",
+        "email": ""
+      },
+      "tags": [
+        "React",
+        "AWS",
+        "Go"
+      ],
+      "achievementsTasks": [
+        {
+          "id": "exp_1_4_b0",
+          "description": "Cut p99 API latency by 38% by reworking the caching and query layer",
+          "emphasise": true,
+          "tags": [],
+          "metrics": [
+            "38%"
+          ],
+          "evidenceStrength": 0.73
+        },
+        {
+          "id": "exp_1_4_b1",
+          "description": "Mentored four engineers through their first on-call rotations",
+          "emphasise": false,
+          "tags": [],
+          "metrics": [],
+          "evidenceStrength": 0.68
+        },
+        {
+          "id": "exp_1_4_b2",
+          "description": "Introduced contract tests that eliminated a recurring integration outage class",
+          "emphasise": false,
+          "tags": [],
+          "metrics": [],
+          "evidenceStrength": 0.85
+        },
+        {
+          "id": "exp_1_4_b3",
+          "description": "Designed and shipped a payments reconciliation service handling 4M events/day",
+          "emphasise": false,
+          "tags": [],
+          "metrics": [
+            "4M"
+          ],
+          "evidenceStrength": 0.95
+        }
+      ]
+    }
+  ],
+  "projects": [],
+  "education": [
+    {
+      "id": "edu_1_0",
+      "institution": "Monash University",
+      "qualification": "BInfoTech",
+      "field": "Computing",
+      "startDate": "Feb 2014",
+      "endDate": "Nov 2017"
+    }
+  ],
+  "certifications": [],
+  "awards": [],
+  "preferences": {
+    "roleTypes": [
+      "Senior Backend Engineer"
+    ],
+    "industries": [
+      "SaaS",
+      "Fintech"
+    ],
+    "locations": [
+      "Remote",
+      "Melbourne, Australia"
+    ]
+  }
+}

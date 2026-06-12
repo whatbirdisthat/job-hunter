@@ -1,0 +1,57 @@
+{
+  "seed": 42,
+  "personas": [
+    {
+      "file": "personas/persona-001.cv.json",
+      "archetype": "backend-engineer",
+      "name": "Devin Voss"
+    },
+    {
+      "file": "personas/persona-002.cv.json",
+      "archetype": "frontend-engineer",
+      "name": "Jordan Delacroix"
+    },
+    {
+      "file": "personas/persona-003.cv.json",
+      "archetype": "product-manager",
+      "name": "Quinn Romano"
+    },
+    {
+      "file": "personas/persona-004.cv.json",
+      "archetype": "career-changer",
+      "name": "Harper Marsh"
+    }
+  ],
+  "jobs": [
+    {
+      "file": "jobs/job-linkedin-001.json",
+      "source": "linkedin",
+      "title": "Senior Backend Engineer"
+    },
+    {
+      "file": "jobs/job-seek-002.json",
+      "source": "seek",
+      "title": "Product Manager"
+    },
+    {
+      "file": "jobs/job-linkedin-003.json",
+      "source": "linkedin",
+      "title": "Platform Engineer"
+    },
+    {
+      "file": "jobs/job-seek-004.json",
+      "source": "seek",
+      "title": "Platform Engineer"
+    },
+    {
+      "file": "jobs/job-linkedin-005.json",
+      "source": "linkedin",
+      "title": "Frontend Engineer"
+    },
+    {
+      "file": "jobs/job-seek-006.json",
+      "source": "seek",
+      "title": "Full Stack Developer"
+    }
+  ]
+}

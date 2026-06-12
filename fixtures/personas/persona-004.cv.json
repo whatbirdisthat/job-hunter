@@ -1,0 +1,271 @@
+{
+  "schemaVersion": "1.0.0",
+  "person": {
+    "name": "Harper Marsh",
+    "professionalTitle": "Junior Software Developer",
+    "professionalDescription": "Career-changer from operations into software, strong on communication and fundamentals.",
+    "location": "Melbourne, Australia",
+    "email": "harper-marsh@example.com",
+    "phone": "0443 845 854",
+    "linkedin": "linkedin.com/in/harper-marsh",
+    "github": "github.com/harper-marsh",
+    "website": "",
+    "image": ""
+  },
+  "headline": "Junior Software Developer",
+  "summaryVariants": [
+    "Career-changer from operations into software, strong on communication and fundamentals."
+  ],
+  "programmingLanguages": [
+    {
+      "name": "JavaScript",
+      "proficiency": 3,
+      "aliases": [],
+      "evidenceIds": []
+    },
+    {
+      "name": "Python",
+      "proficiency": 3,
+      "aliases": [],
+      "evidenceIds": []
+    },
+    {
+      "name": "SQL",
+      "proficiency": 3,
+      "aliases": [],
+      "evidenceIds": []
+    },
+    {
+      "name": "HTML",
+      "proficiency": 4,
+      "aliases": [],
+      "evidenceIds": []
+    },
+    {
+      "name": "CSS",
+      "proficiency": 4,
+      "aliases": [],
+      "evidenceIds": []
+    }
+  ],
+  "skills": [
+    {
+      "name": "Problem Solving",
+      "proficiency": 4,
+      "aliases": [],
+      "evidenceIds": []
+    },
+    {
+      "name": "Stakeholder Communication",
+      "proficiency": 5,
+      "aliases": [],
+      "evidenceIds": []
+    },
+    {
+      "name": "Process Improvement",
+      "proficiency": 4,
+      "aliases": [],
+      "evidenceIds": []
+    }
+  ],
+  "toolsTechnologies": [
+    {
+      "name": "Git",
+      "proficiency": 3,
+      "aliases": [],
+      "evidenceIds": []
+    },
+    {
+      "name": "React",
+      "proficiency": 3,
+      "aliases": [],
+      "evidenceIds": []
+    },
+    {
+      "name": "Node.js",
+      "proficiency": 3,
+      "aliases": [],
+      "evidenceIds": []
+    },
+    {
+      "name": "Excel",
+      "proficiency": 5,
+      "aliases": [],
+      "evidenceIds": []
+    }
+  ],
+  "asAServices": [
+    {
+      "name": "AWS",
+      "proficiency": 1,
+      "aliases": [],
+      "evidenceIds": []
+    }
+  ],
+  "experience": [
+    {
+      "id": "exp_4_0",
+      "jobTitle": "Operations Analyst",
+      "businessName": "Vantage Co",
+      "consultancy": "",
+      "location": "Adelaide, Australia",
+      "employmentType": "Employer",
+      "startDate": "Nov 2022",
+      "endDate": "Present",
+      "domain": "SaaS",
+      "hide": false,
+      "contact": {
+        "name": "",
+        "email": ""
+      },
+      "tags": [
+        "PostgreSQL",
+        "CI/CD",
+        "Kafka",
+        "Go"
+      ],
+      "achievementsTasks": [
+        {
+          "id": "exp_4_0_b0",
+          "description": "Reduced onboarding time for new coordinators by rewriting the runbook",
+          "emphasise": true,
+          "tags": [],
+          "metrics": [],
+          "evidenceStrength": 0.82
+        },
+        {
+          "id": "exp_4_0_b1",
+          "description": "Acted as the bridge between support tickets and the engineering backlog",
+          "emphasise": false,
+          "tags": [],
+          "metrics": [],
+          "evidenceStrength": 0.82
+        }
+      ]
+    },
+    {
+      "id": "exp_4_1",
+      "jobTitle": "Operations Analyst",
+      "businessName": "Cobalt Digital",
+      "consultancy": "",
+      "location": "Brisbane, Australia",
+      "employmentType": "Employer",
+      "startDate": "Dec 2019",
+      "endDate": "Dec 2022",
+      "domain": "E-commerce",
+      "hide": false,
+      "contact": {
+        "name": "",
+        "email": ""
+      },
+      "tags": [
+        "Terraform",
+        "Redis",
+        "Go",
+        "Python",
+        "Docker",
+        "gRPC"
+      ],
+      "achievementsTasks": [
+        {
+          "id": "exp_4_1_b0",
+          "description": "Completed a 6-month immersive software course while working full time",
+          "emphasise": true,
+          "tags": [],
+          "metrics": [],
+          "evidenceStrength": 0.79
+        },
+        {
+          "id": "exp_4_1_b1",
+          "description": "Acted as the bridge between support tickets and the engineering backlog",
+          "emphasise": false,
+          "tags": [],
+          "metrics": [],
+          "evidenceStrength": 0.71
+        },
+        {
+          "id": "exp_4_1_b2",
+          "description": "Reduced onboarding time for new coordinators by rewriting the runbook",
+          "emphasise": false,
+          "tags": [],
+          "metrics": [],
+          "evidenceStrength": 0.85
+        },
+        {
+          "id": "exp_4_1_b3",
+          "description": "Automated a manual reporting process with a small Node script",
+          "emphasise": false,
+          "tags": [],
+          "metrics": [],
+          "evidenceStrength": 0.91
+        }
+      ]
+    },
+    {
+      "id": "exp_4_2",
+      "jobTitle": "Support Lead",
+      "businessName": "Vantage Labs",
+      "consultancy": "",
+      "location": "Canberra, Australia",
+      "employmentType": "Employer",
+      "startDate": "Mar 2017",
+      "endDate": "Sep 2019",
+      "domain": "E-commerce",
+      "hide": false,
+      "contact": {
+        "name": "",
+        "email": ""
+      },
+      "tags": [
+        "Terraform",
+        "CI/CD",
+        "PostgreSQL",
+        "TypeScript"
+      ],
+      "achievementsTasks": [
+        {
+          "id": "exp_4_2_b0",
+          "description": "Reduced onboarding time for new coordinators by rewriting the runbook",
+          "emphasise": true,
+          "tags": [],
+          "metrics": [],
+          "evidenceStrength": 0.67
+        },
+        {
+          "id": "exp_4_2_b1",
+          "description": "Acted as the bridge between support tickets and the engineering backlog",
+          "emphasise": false,
+          "tags": [],
+          "metrics": [],
+          "evidenceStrength": 0.64
+        }
+      ]
+    }
+  ],
+  "projects": [],
+  "education": [
+    {
+      "id": "edu_4_0",
+      "institution": "QUT",
+      "qualification": "BSc Computer Science",
+      "field": "Computing",
+      "startDate": "Feb 2014",
+      "endDate": "Nov 2017"
+    }
+  ],
+  "certifications": [],
+  "awards": [],
+  "preferences": {
+    "roleTypes": [
+      "Junior Software Developer"
+    ],
+    "industries": [
+      "SaaS",
+      "Fintech"
+    ],
+    "locations": [
+      "Remote",
+      "Melbourne, Australia"
+    ]
+  }
+}

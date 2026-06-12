@@ -1,0 +1,61 @@
+{
+  "source": "seek",
+  "sourceUrl": "https://www.seek.com.au/job/70000004",
+  "capturedAt": "2026-01-01T00:00:00Z",
+  "jobId": "seek-4",
+  "company": "Acme Labs",
+  "title": "Platform Engineer",
+  "location": "Sydney, Australia",
+  "employmentType": "Full-time",
+  "workModel": "remote",
+  "salary": {
+    "min": 132000,
+    "max": 188000,
+    "currency": "AUD"
+  },
+  "descriptionRaw": "We are hiring a Platform Engineer at Acme Labs. You will own delivery end to end. Required: CI/CD ownership; AWS or GCP experience; Strong TypeScript or Python. Nice to have: Event-driven architecture; GraphQL.",
+  "descriptionClean": "We are hiring a Platform Engineer at Acme Labs. You will own delivery end to end.",
+  "responsibilities": [
+    "Own delivery of features end to end",
+    "Collaborate with product and design",
+    "Improve reliability and observability"
+  ],
+  "requirements": {
+    "mustHave": [
+      "CI/CD ownership",
+      "AWS or GCP experience",
+      "Strong TypeScript or Python"
+    ],
+    "niceToHave": [
+      "Event-driven architecture",
+      "GraphQL"
+    ],
+    "tools": [
+      "Kafka",
+      "CI/CD",
+      "TypeScript",
+      "gRPC",
+      "PostgreSQL"
+    ],
+    "domains": [
+      "SaaS"
+    ],
+    "senioritySignals": [
+      "senior",
+      "lead"
+    ]
+  },
+  "keywords": [
+    "Kafka",
+    "CI/CD",
+    "TypeScript",
+    "gRPC",
+    "PostgreSQL"
+  ],
+  "applicationMethod": "seek-quick-apply",
+  "recruiter": {
+    "name": "",
+    "title": "",
+    "profileUrl": ""
+  }
+}
