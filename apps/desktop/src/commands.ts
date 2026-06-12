@@ -36,5 +36,14 @@ export interface Commands {
   computeCoverage(): Promise<CoverageReport>;
   tailoredBullets(): Promise<Bullet[]>;
   setDecision(evidenceId: string, approved: boolean): Promise<void>;
-  exportApplication(): Promise<{ cvPdfLen: number; coverLetterPdfLen: number }>;
+  // Item #3 (R-ADV-13): opt INTO the Applicant Advocate LLM rewrite. Default OFF; the
+  // user toggles it in the review step. Mirrors aa_desktop::Session::set_advocate_enabled.
+  setAdvocateEnabled(enabled: boolean): Promise<void>;
+  // Item #3: export now reports `aiUsed` (R-ADV-10) so the UI can show an "AI was used"
+  // badge. Surface-only provenance; no persistence this slice.
+  exportApplication(): Promise<{
+    cvPdfLen: number;
+    coverLetterPdfLen: number;
+    aiUsed: boolean;
+  }>;
 }

@@ -83,3 +83,68 @@ regression failure (non-vacuity). All five test levels L1–L5 pass and each rec
 the L5 STORYs are perf-delta gated against TRACKED baselines under `doc/perf/`
 (`cvimport-import-story-baseline.txt`, `desktop-story-baseline.txt`) — never the gitignored
 `target/` (Finding 3).
+
+---
+
+# Coverage policy — item #3 (`crates/advocate`, Applicant Advocate LLM layer)
+
+**Same floor: 100% of reachable code** (`cargo llvm-cov --workspace --all-targets`,
+`--fail-under-lines 99`). Workspace line coverage with item #3 is **99.36%** (above the floor).
+
+## `crates/advocate` — 100% lines, NO new pragmas
+Every reachable line of the advocate crate is covered by the L1/L2/L3 tests: `redact`/`redact_kind`,
+`build_prompt` (BOTH `RewriteKind` arms), `StubProvider::{new, fabricating, rewrite, name}` (honest
+AND fabricating modes), `AdvocateConfig::default` (disabled), the `AdvocateError` Display variants,
+and the `RewriteKind` serde round-trip. The PII firewall is proven structurally at L3
+(`outbound_payload_has_no_master_cv_fields`: the serialized `RewriteRequest` keys are EXACTLY
+`{evidence_id, evidence_text, requirement, kind}`).
+
+The **`live-http` adapters** (`src/live.rs`: `OllamaProvider`, `HttpKeyProvider`) are **not compiled
+under default features** and so are **not in the default coverage set** — exactly the
+**P-COV-3 feature-gated class** (the slice-1 embedded renderer). They are a compile-gated,
+network-only surface verified to build + lint clean under `--features live-http`
+(`cargo clippy -p aa-advocate --features live-http --all-targets -- -D warnings`), but CI proves the
+advocate contract with the deterministic `StubProvider` instead of a live model (NO network in CI by
+construction — `ureq` is absent from the default dependency tree). When a live-model integration
+harness is added it runs under the same five-level contract; until then the adapters carry no
+pragma because they are simply not in the default-feature reachable set.
+
+The **network-free portions** of the adapters DO carry unit tests under `#[cfg(feature="live-http")]`
+(also the **P-COV-3 feature-gated class**, exercised by `cargo test -p aa-advocate --features
+live-http`, NOT by the default `--workspace` gate): the `HttpKeyProvider` `https://`-only scheme guard
+(parse-don't-validate — `http_key_provider_rejects_insecure_endpoint` /
+`_accepts_https_endpoint` / `_rejects_schemeless_endpoint`) and the secret-redacting `Debug` impl
+(`http_key_provider_debug_redacts_api_key`). These fire BEFORE any HTTP call, so they need no socket.
+The only lines still uncovered in `src/live.rs` are the actual send/parse paths that require a live
+endpoint — they remain in the P-COV-3 not-in-default-reachable-set class until a live harness exists.
+
+## `apps/desktop/src-tauri/lib.rs` — item-#3 additions, no NEW pragma class
+The advocate export path (`prepare_export` / `export_application` / `render_inputs` /
+`set_advocate_enabled` / `advocate_enabled` / the `From<AdvocateError>` conv) is covered by the L4
+system tests (`tests/advocate_l4.rs`) and the L5 advocate STORY (`tests/story_l5.rs`). All observable
+branches are exercised:
+- flag ON + honest stub → two valid PDFs, `ai_used == true` (`rewrite_enabled_clean_stub_exports_two_pdfs`);
+- **the mandatory adversarial test** — a fabricated CV-bullet cited id is NAMED + BLOCKED
+  (`adversarial_stub_fabricates_dangling_id_blocks_export`) with its **non-vacuous twin** (the same
+  honest-stub journey PASSES — `non_vacuous_twin_honest_stub_same_journey_passes`);
+- the **cover-letter strength** fabrication branch (the `else` adopt-cited-id arm + the letter
+  re-guard) is covered by `fabricated_cover_letter_strength_id_blocks_export` (honest for bullets,
+  fabricating only for strengths, so the CV guard passes and the letter re-guard fires);
+- flag OFF → render inputs byte-identical to the deterministic path
+  (`flag_off_is_byte_identical_to_deterministic` — compares the *pre-render* view/letter JSON, NOT
+  the PDF bytes, because typst PDFs are not byte-stable across invocations per R-D2);
+- flag ON + unreachable provider → explicit `CommandError::Advocate`, **no silent fallback**
+  (`unreachable_provider_surfaces_error`).
+
+The residual sub-line region misses in `lib.rs` (raw line metric 98.88%) are the **`?`-operator
+error-propagation arms** — the early-return `Err` fragment of `self.provider.rewrite(&req)?` on the
+happy path, and the `ok_or(NoMasterCv)/ok_or(NoJob)?` arms reached through `prepare_export`'s callers.
+These are the **same P-COV-1 infallible/defensive-error-arm class** as slice-1: the error *values* a
+caller can observe (`Advocate`, `ExportBlocked`, `NoMasterCv`, `NoJob`) are ALL exercised by dedicated
+tests; the un-hit fragments are the short-circuit paths the happy-path control flow does not take.
+No NEW pragma id is introduced — these fall under the existing **P-COV-1** rationale.
+
+## `crates/core/src/tailor.rs` — `requirement_for` is 100%
+The item-#3 core helper `requirement_for` (R-ADV-12, top-matching must-have or joined-list fallback)
+is covered to 100% by four L1 tests: top-match, no-single-match → joined list, unknown id → joined
+list, and empty-job → empty string.

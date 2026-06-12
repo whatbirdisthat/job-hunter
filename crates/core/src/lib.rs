@@ -28,7 +28,7 @@ pub use ledger::{cv_ledger, guard, LedgerNode};
 pub use render::{
     is_valid_pdf, render_cover_letter, render_cv, CoverLetter, Renderer, StrengthParagraph,
 };
-pub use tailor::{pick_summary, tailor, TailoredView, DEFAULT_TOP_N};
+pub use tailor::{pick_summary, requirement_for, tailor, TailoredView, DEFAULT_TOP_N};
 pub use types::{Achievement, CoreError, Experience, MasterCv, Person, Skill};
 
 /// The two exported PDFs of an application (§G: cv.pdf + cover-letter.pdf).

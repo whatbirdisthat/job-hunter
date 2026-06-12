@@ -21,12 +21,26 @@ Tauri `import_resume` command + a second onboarding import option in the React U
 100%-of-reachable coverage (P-COV-cvimport-1/2/3); PII-free synthetic fixtures only. Adversarial
 review PASS after one BLOCK round (UTF-8 panic + DOCX decompression-bomb cap + non-vacuous perf gate).
 
-## TODO (being built in order, one PR per item)
+### 3. Applicant Advocate LLM layer ✅ (item-3-advocate-llm — PR open, awaiting merge)
+Optional, feature-flagged, evidence-bounded rewrite/draft layer; OFF by default — the deterministic
+path (items 1–2) remains the product without it. New crate `crates/advocate` (depends on `crates/core`
+only, one-way graph): an `AdvocateProvider` trait with a deterministic `StubProvider` (always compiled,
+the CI/test surface) and feature-gated (`live-http`) `OllamaProvider` (loopback `http://localhost:11434`)
++ generic BYO-key `HttpKeyProvider` (TLS via `ureq/rustls`; rejects non-`https://` endpoints; manual
+redacting `Debug`). Redaction is STRUCTURAL by type: the `RewriteRequest` carries only
+`{evidence_id, evidence_text, requirement, kind}` — no `Person` block can reach the prompt. Output
+re-enters the EXISTING §E evidence-ledger guard against the IMMUTABLE master CV: a rewrite citing a
+dangling/absent evidence id is BLOCKED at export (non-vacuous adversarial test — stub fabricates →
+export blocked & named; honest twin passes). Surfaces: CV-bullet rewrite + cover-letter strength
+drafting behind a clear opt-in React toggle (OFF by default) + an "AI was used" badge. EARS R-ADV-1..13;
+L1–L5 + STORY perf-delta gate (new tracked baseline); 100%-of-reachable coverage; no live model in CI
+(`ureq` excluded from the default/CI build by construction). Adversarial review PASS after one
+NEEDS_REVISION round (TLS+scheme guard, Debug redaction, honest faithfulness-limitation disclosure,
+free-text-PII residual doc, cover-letter single-rewrite). Documented residuals deferred to the
+adapter-wiring slice: R-ADV-RES-1 text-faithfulness for live models, R-ADV-RES-2 cited-id parsing,
+R-ADV-RES-3 free-text PII in evidence.
 
-### 3. Applicant Advocate LLM layer
-Optional, feature-flagged, evidence-bounded rewrite/draft over local Ollama or a user-supplied key.
-Redact before any call; never invent; cite evidence ids; fully disablable. Tests use a stub adapter
-(no live model in CI).
+## TODO (being built in order, one PR per item)
 
 ### 4. Capture extension (MV3) + email saved-search ingestion
 "Clip this job" browser extension (DOM → Normalized Job JSON) + saved-search email parser. Compliant

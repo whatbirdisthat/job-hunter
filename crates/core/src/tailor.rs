@@ -146,6 +146,33 @@ pub fn pick_summary(cv: &MasterCv, job: &NormalizedJob) -> Option<(String, Strin
     ))
 }
 
+/// The top-matching must-have requirement string for a selected achievement id
+/// (R-ADV-12). Reuses the §D `matches_must` logic: for the achievement with this id,
+/// return the FIRST must-have requirement (in job order) that the achievement matches
+/// (its description/tags/experience-tags token set intersects the requirement tokens).
+///
+/// Deterministic no-match fallback: when the achievement matches NO single must-have
+/// requirement (or the id is not found, or there are no must-haves), return the JOINED
+/// must-have list (`must_have.join(", ")`). This guarantees every rewrite carries a
+/// non-empty requirement string when the job has any must-haves; an empty job yields
+/// an empty string (honest — there is nothing to tailor toward). Pinned by test.
+pub fn requirement_for(cv: &MasterCv, job: &NormalizedJob, evidence_id: &str) -> String {
+    let must = &job.requirements.must_have;
+    // find the owning experience + achievement for this id
+    for exp in &cv.experience {
+        for a in &exp.achievements_tasks {
+            if a.id == evidence_id {
+                for req in must {
+                    if matches_must(a, exp, std::slice::from_ref(req)) {
+                        return req.clone();
+                    }
+                }
+            }
+        }
+    }
+    must.join(", ")
+}
+
 /// The tailored view (§H): a `MasterCv` that is a filtered/reordered copy of the
 /// master, so it conforms to master-cv.schema.json and renders via `classic.typ`.
 /// The chosen summary is placed at `summaryVariants[0]` so the template surfaces it
@@ -380,6 +407,65 @@ mod tests {
         };
         let v2 = tailor(&cv, &j2, DEFAULT_TOP_N);
         assert_eq!(v2.cv.experience[0].achievements_tasks.len(), 2);
+    }
+
+    #[test]
+    fn requirement_for_returns_top_match() {
+        // R-ADV-12: exp_1_0_b0 matches "caching" (a must-have) → that requirement is returned.
+        let m = master();
+        let j = job(); // must_have = ["caching", "Python"]
+        let req = requirement_for(&m, &j, "exp_1_0_b0");
+        assert_eq!(
+            req, "caching",
+            "top-matching must-have is returned verbatim"
+        );
+    }
+
+    #[test]
+    fn requirement_for_falls_back_to_joined_must() {
+        // R-ADV-12: an achievement matching NO single must-have → joined must-have list.
+        let doc = r#"{"schemaVersion":"1.0.0","person":{},"experience":[
+            {"id":"e0","jobTitle":"T","businessName":"B","startDate":"Jan 2020","achievementsTasks":[
+              {"id":"e0_b0","description":"organised the office party"}]}]}"#;
+        let cv = MasterCv::from_json(doc).unwrap();
+        let j = NormalizedJob {
+            title: "".into(),
+            company: "".into(),
+            location: "".into(),
+            responsibilities: vec![],
+            requirements: crate::job::Requirements {
+                must_have: vec!["Rust".into(), "Kubernetes".into()],
+                nice_to_have: vec![],
+            },
+            keywords: vec![],
+        };
+        assert_eq!(requirement_for(&cv, &j, "e0_b0"), "Rust, Kubernetes");
+    }
+
+    #[test]
+    fn requirement_for_unknown_id_falls_back() {
+        // id not present in the CV → joined must-have list (deterministic, non-empty).
+        let m = master();
+        let j = job();
+        assert_eq!(requirement_for(&m, &j, "GHOST_id"), "caching, Python");
+    }
+
+    #[test]
+    fn requirement_for_empty_job_is_empty() {
+        // no must-haves → empty string (honest: nothing to tailor toward).
+        let m = master();
+        let empty = NormalizedJob {
+            title: "".into(),
+            company: "".into(),
+            location: "".into(),
+            responsibilities: vec![],
+            requirements: crate::job::Requirements {
+                must_have: vec![],
+                nice_to_have: vec![],
+            },
+            keywords: vec![],
+        };
+        assert_eq!(requirement_for(&m, &empty, "exp_1_0_b0"), "");
     }
 
     #[test]

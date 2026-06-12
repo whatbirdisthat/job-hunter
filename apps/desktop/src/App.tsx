@@ -18,6 +18,10 @@ export function App({ commands }: AppProps) {
   const [coverage, setCoverage] = useState<CoverageReport | null>(null);
   const [bullets, setBullets] = useState<Bullet[]>([]);
   const [importError, setImportError] = useState<string | null>(null);
+  // Item #3 (R-ADV-13): the Applicant Advocate opt-in. OFF by default; surfaced as a
+  // toggle in the review step. After export, `aiUsed` drives the "AI was used" badge.
+  const [advocateEnabled, setAdvocateEnabled] = useState(false);
+  const [aiUsed, setAiUsed] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const onImported = async (json: string) => {
@@ -47,8 +51,15 @@ export function App({ commands }: AppProps) {
     setStep("review");
   };
 
+  // R-ADV-13: toggle the advocate opt-in; the command layer records it (default OFF).
+  const onToggleAdvocate = async (enabled: boolean) => {
+    setAdvocateEnabled(enabled);
+    await commands.setAdvocateEnabled(enabled);
+  };
+
   const onExport = async () => {
-    await commands.exportApplication();
+    const result = await commands.exportApplication();
+    setAiUsed(result.aiUsed);
     setStep("done");
   };
 
@@ -94,10 +105,29 @@ export function App({ commands }: AppProps) {
               {(coverage.mustHaveCoverage * 100).toFixed(0)}%
             </p>
           )}
+          <label>
+            <input
+              type="checkbox"
+              role="switch"
+              aria-label="Use Applicant Advocate (AI) to rewrite bullets"
+              checked={advocateEnabled}
+              onChange={(e) => void onToggleAdvocate(e.target.checked)}
+            />
+            Use Applicant Advocate (AI) — evidence-bounded, off by default
+          </label>
           <ReviewPanel bullets={bullets} commands={commands} onExport={onExport} />
         </>
       )}
-      {step === "done" && <p>Exported cv.pdf + cover-letter.pdf.</p>}
+      {step === "done" && (
+        <>
+          <p>Exported cv.pdf + cover-letter.pdf.</p>
+          {aiUsed && (
+            <p role="status" aria-label="AI was used">
+              AI was used to rewrite bullets (evidence-bounded).
+            </p>
+          )}
+        </>
+      )}
     </main>
   );
 }

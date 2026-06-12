@@ -24,10 +24,21 @@ function stubCommands(over: Partial<Commands> = {}): Commands {
     importMasterCv: vi.fn().mockResolvedValue(undefined),
     importResume: vi.fn().mockResolvedValue('{"schemaVersion":"1.0.0","person":{"name":"Devin Voss"},"experience":[]}'),
     parseJob: vi.fn().mockResolvedValue(undefined),
-    computeCoverage: vi.fn(),
-    tailoredBullets: vi.fn(),
+    computeCoverage: vi.fn().mockResolvedValue({
+      mustHave: [],
+      niceToHave: [],
+      mustHaveCoverage: 0.5,
+      niceHaveCoverage: 0.5,
+      fitScore: 0.5,
+    }),
+    tailoredBullets: vi.fn().mockResolvedValue([
+      { id: "exp_1_0_b0", description: "Cut p99 API latency by 38%", role: "Backend Engineer" },
+    ]),
     setDecision: vi.fn().mockResolvedValue(undefined),
-    exportApplication: vi.fn(),
+    setAdvocateEnabled: vi.fn().mockResolvedValue(undefined),
+    exportApplication: vi
+      .fn()
+      .mockResolvedValue({ cvPdfLen: 1, coverLetterPdfLen: 1, aiUsed: false }),
     ...over,
   };
 }
@@ -90,5 +101,66 @@ describe("App onboarding — résumé import option", () => {
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(/Import failed/));
     // still on the import step
     expect(screen.getByLabelText("Import résumé (PDF/DOCX)")).toBeInTheDocument();
+  });
+});
+
+// Item #3 (R-ADV-13) — the Applicant Advocate opt-in toggle + "AI was used" badge.
+describe("App — Applicant Advocate opt-in (item #3)", () => {
+  // Navigate App to the review step: import master CV → paste JD → review.
+  async function toReview(over: Partial<Commands> = {}) {
+    const commands = stubCommands(over);
+    const user = userEvent.setup();
+    render(<App commands={commands} />);
+    await user.click(screen.getByLabelText("Import master CV"));
+    await user.click(screen.getByLabelText("Paste JD"));
+    await waitFor(() =>
+      expect(
+        screen.getByLabelText("Use Applicant Advocate (AI) to rewrite bullets"),
+      ).toBeInTheDocument(),
+    );
+    return { commands, user };
+  }
+
+  it("the advocate toggle is off by default in the review step", async () => {
+    await toReview();
+    const toggle = screen.getByLabelText(
+      "Use Applicant Advocate (AI) to rewrite bullets",
+    ) as HTMLInputElement;
+    expect(toggle).not.toBeChecked();
+  });
+
+  it("turning the toggle on calls setAdvocateEnabled(true)", async () => {
+    const setAdvocateEnabled = vi.fn().mockResolvedValue(undefined);
+    const { user } = await toReview({ setAdvocateEnabled });
+    await user.click(
+      screen.getByLabelText("Use Applicant Advocate (AI) to rewrite bullets"),
+    );
+    expect(setAdvocateEnabled).toHaveBeenCalledWith(true);
+    expect(
+      screen.getByLabelText("Use Applicant Advocate (AI) to rewrite bullets"),
+    ).toBeChecked();
+  });
+
+  it("shows the 'AI was used' badge after an export that returns aiUsed true", async () => {
+    const exportApplication = vi
+      .fn()
+      .mockResolvedValue({ cvPdfLen: 1, coverLetterPdfLen: 1, aiUsed: true });
+    const { user } = await toReview({ exportApplication });
+    await user.click(screen.getByLabelText("Export two PDFs"));
+    await waitFor(() =>
+      expect(screen.getByLabelText("AI was used")).toBeInTheDocument(),
+    );
+  });
+
+  it("does NOT show the 'AI was used' badge when aiUsed is false", async () => {
+    const exportApplication = vi
+      .fn()
+      .mockResolvedValue({ cvPdfLen: 1, coverLetterPdfLen: 1, aiUsed: false });
+    const { user } = await toReview({ exportApplication });
+    await user.click(screen.getByLabelText("Export two PDFs"));
+    await waitFor(() =>
+      expect(screen.getByText(/Exported cv.pdf/)).toBeInTheDocument(),
+    );
+    expect(screen.queryByLabelText("AI was used")).not.toBeInTheDocument();
   });
 });
