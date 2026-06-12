@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://job-hunter.example/schemas/tracker-doc.schema.json",
+  "title": "Tracker Document",
+  "description": "The whole persisted on-device tracker state for item #5 (Application tracker / CRM): the applications a user is pursuing plus the recruiter/contact CRM. Produced by aa-tracker's value types (TrackerDoc) and persisted by the command-layer JsonFileStore (atomic temp+rename). The value contract on the TrackerStore seam (R-STO-1/3): the store serializes/deserializes this shape; this schema is the structural invariant the L3 boundary test asserts. Field names are camelCase; additionalProperties:false everywhere; enum strings are PascalCase (matching serde's default external tagging).",
+  "type": "object",
+  "required": ["applications", "contacts"],
+  "additionalProperties": false,
+  "properties": {
+    "applications": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/application" }
+    },
+    "contacts": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/contact" }
+    }
+  },
+  "$defs": {
+    "date": {
+      "type": "object",
+      "required": ["year", "month", "day"],
+      "additionalProperties": false,
+      "properties": {
+        "year": { "type": "integer" },
+        "month": { "type": "integer" },
+        "day": { "type": "integer" }
+      }
+    },
+    "appState": {
+      "type": "string",
+      "enum": ["Discovered", "Tailored", "Applied", "FollowUpDue", "Interview", "Closed"]
+    },
+    "channel": {
+      "type": "string",
+      "enum": ["Email", "Phone", "LinkedIn", "Other"]
+    },
+    "outcome": {
+      "type": "string",
+      "enum": ["Contacted", "Replied", "Voicemail", "NextStep"]
+    },
+    "normalizedJob": {
+      "type": "object",
+      "required": ["title", "company", "requirements"],
+      "additionalProperties": false,
+      "properties": {
+        "title": { "type": "string" },
+        "company": { "type": "string" },
+        "location": { "type": "string" },
+        "responsibilities": { "type": "array", "items": { "type": "string" } },
+        "requirements": {
+          "type": "object",
+          "required": ["mustHave", "niceToHave"],
+          "additionalProperties": false,
+          "properties": {
+            "mustHave": { "type": "array", "items": { "type": "string" } },
+            "niceToHave": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "keywords": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "note": {
+      "type": "object",
+      "required": ["at", "outcome", "text"],
+      "additionalProperties": false,
+      "properties": {
+        "at": { "$ref": "#/$defs/date" },
+        "outcome": { "$ref": "#/$defs/outcome" },
+        "text": { "type": "string" }
+      }
+    },
+    "application": {
+      "type": "object",
+      "required": ["id", "job", "documentIds", "state", "submitted", "contactId", "notes"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "job": { "$ref": "#/$defs/normalizedJob" },
+        "documentIds": { "type": "array", "items": { "type": "string" } },
+        "state": { "$ref": "#/$defs/appState" },
+        "submitted": {
+          "oneOf": [{ "$ref": "#/$defs/date" }, { "type": "null" }]
+        },
+        "contactId": {
+          "oneOf": [{ "type": "string" }, { "type": "null" }]
+        },
+        "notes": { "type": "array", "items": { "$ref": "#/$defs/note" } }
+      }
+    },
+    "contact": {
+      "type": "object",
+      "required": ["id", "name", "org", "role", "channel"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "org": { "type": "string" },
+        "role": { "type": "string" },
+        "channel": { "$ref": "#/$defs/channel" }
+      }
+    }
+  }
+}

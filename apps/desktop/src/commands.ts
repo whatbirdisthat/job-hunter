@@ -23,6 +23,71 @@ export interface Bullet {
   role: string;
 }
 
+// ── Item #5: the application tracker / CRM surface ───────────────────────────
+// Mirrors aa_tracker's value types (serde shape) + the new aa_desktop::Session
+// tracker commands. Dates marshal as { year, month, day } objects; AppState /
+// Channel / Outcome cross the boundary as strings parsed by a ::parse helper on
+// the Rust side (typed error, never a panic).
+
+export interface TrackerDate {
+  year: number;
+  month: number;
+  day: number;
+}
+
+export type AppState =
+  | "Discovered"
+  | "Tailored"
+  | "Applied"
+  | "FollowUpDue"
+  | "Interview"
+  | "Closed";
+
+export type Channel = "Email" | "Phone" | "LinkedIn" | "Other";
+export type Outcome = "Contacted" | "Replied" | "Voicemail" | "NextStep";
+
+export interface TrackedApplication {
+  id: string;
+  job: { title: string; company: string };
+  documentIds: string[];
+  state: AppState;
+  submitted: TrackerDate | null;
+  contactId: string | null;
+  notes: { at: TrackerDate; outcome: Outcome; text: string }[];
+}
+
+export interface FollowUpWindow {
+  opensDay: number;
+  closesDay: number;
+}
+
+export interface CallSheetRow {
+  applicationId: string;
+  company: string;
+  role: string;
+  applicationDate: TrackerDate;
+  followUpWindow: FollowUpWindow;
+  contact: { name: string; org: string; channel: Channel } | null;
+  suggestedChannel: Channel;
+  nextAction: "FirstFollowUp" | "SecondFollowUp";
+  draftMessage: string;
+  priorityScore: number;
+}
+
+// The tracker command surface (mirrors the new aa_desktop::Session commands).
+export interface TrackerCommands {
+  // Create an application (state Discovered) from a NormalizedJob JSON + doc ids.
+  trackApplication(jobJson: string, documentIds: string[]): Promise<string>;
+  // Advance an application's lifecycle; entering Applied stamps `submitted` with `today`.
+  // An illegal transition rejects with a typed tracker error.
+  advanceApplication(appId: string, to: AppState, today: TrackerDate): Promise<void>;
+  addContact(name: string, org: string, role: string, channel: Channel): Promise<string>;
+  linkContact(appId: string, contactId: string): Promise<void>;
+  addNote(appId: string, outcome: Outcome, text: string, today: TrackerDate): Promise<void>;
+  dailyCallSheet(today: TrackerDate): Promise<CallSheetRow[]>;
+  listApplications(): Promise<TrackedApplication[]>;
+}
+
 // The command surface (mirrors aa_desktop::Session). Implemented by the Tauri
 // bridge at runtime; mocked in tests.
 export interface Commands {
@@ -47,3 +112,8 @@ export interface Commands {
     aiUsed: boolean;
   }>;
 }
+
+// The full runtime surface composes the slice-1..3 commands with the item-#5 tracker
+// commands. Kept as a separate interface (above) so the tracker board/call-sheet/contact
+// components can depend on JUST the tracker subset in their (local-only) tests.
+export type AllCommands = Commands & TrackerCommands;

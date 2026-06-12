@@ -17,6 +17,10 @@ aa-cvimport = { path = "../../../crates/cvimport" }
 # DEFAULT features only — so the workspace CI gate compiles the advocate trait + stub,
 # NOT the `live-http` network adapters. No network code in CI by construction (R-ADV-2).
 aa-advocate = { path = "../../../crates/advocate" }
+# Item #5: the application tracker / CRM cores (pure, clock-injected). The TrackerStore
+# seam + JsonFileStore persistence + the new Session commands live HERE (the command
+# layer), keeping aa-tracker IO-free. Default features only (no network).
+aa-tracker = { path = "../../../crates/tracker" }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true

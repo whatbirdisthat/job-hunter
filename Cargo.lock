@@ -47,6 +47,7 @@ dependencies = [
  "aa-core",
  "aa-cvimport",
  "aa-jobparse",
+ "aa-tracker",
  "docx-rs",
  "serde",
  "serde_json",
@@ -57,6 +58,16 @@ dependencies = [
 name = "aa-jobparse"
 version = "0.1.0"
 dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
+name = "aa-tracker"
+version = "0.1.0"
+dependencies = [
+ "aa-core",
  "serde",
  "serde_json",
  "thiserror",

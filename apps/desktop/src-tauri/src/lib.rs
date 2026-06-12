@@ -17,9 +17,17 @@ use aa_core::{
     render_cover_letter, render_cv, requirement_for, tailor, CoverageReport, MasterCv,
     NormalizedJob as CoreJob, TailoredView, DEFAULT_TOP_N,
 };
+use aa_tracker::{
+    add_note, application_id as tracker_application_id, build_call_sheet,
+    contact_id as tracker_contact_id, transition, AppState, Application, CallSheetRow, Channel,
+    Contact, Date, Note, Outcome, TrackerDoc,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use thiserror::Error;
+
+pub mod tracker_store;
+use tracker_store::{JsonFileStore, StoreError, TrackerStore};
 
 #[derive(Debug, Error, Serialize)]
 pub enum CommandError {
@@ -37,6 +45,31 @@ pub enum CommandError {
     /// explicitly — NEVER a silent fallback to the deterministic text.
     #[error("advocate failed: {0}")]
     Advocate(String),
+    /// Item #5: a tracker failure — an illegal lifecycle transition, a bad enum string, a
+    /// missing application/contact, or a persistence error. Carried verbatim, never a panic.
+    #[error("tracker failed: {0}")]
+    Tracker(String),
+}
+
+/// R-TRK-CMD-2 — an illegal lifecycle transition surfaces as a typed tracker error.
+impl From<aa_tracker::TransitionError> for CommandError {
+    fn from(e: aa_tracker::TransitionError) -> Self {
+        CommandError::Tracker(e.to_string())
+    }
+}
+
+/// R-TRK-CMD-3 — a bad enum string at the boundary surfaces as a typed tracker error.
+impl From<aa_tracker::ParseEnumError> for CommandError {
+    fn from(e: aa_tracker::ParseEnumError) -> Self {
+        CommandError::Tracker(e.to_string())
+    }
+}
+
+/// R-STO-1 — a persistence failure surfaces as a typed tracker error.
+impl From<StoreError> for CommandError {
+    fn from(e: StoreError) -> Self {
+        CommandError::Tracker(e.to_string())
+    }
 }
 
 /// R-ADV-9: an advocate provider failure surfaces as an explicit command error, never a
@@ -90,6 +123,13 @@ pub struct Session {
     advocate: AdvocateConfig,
     /// The advocate provider. Default = honest deterministic stub (no network).
     provider: Box<dyn AdvocateProvider + Send + Sync>,
+    /// Item #5: the tracker persistence port (default `JsonFileStore` at the app-data path;
+    /// tests inject a temp-dir store). The cores never see this — only the commands do (R-STO-1).
+    tracker_store: Box<dyn TrackerStore + Send + Sync>,
+    /// Item #5: the in-memory tracker document mirror, loaded from the store on first use.
+    tracker_doc: TrackerDoc,
+    /// Whether `tracker_doc` has been loaded from the store yet (lazy load on first command).
+    tracker_loaded: bool,
 }
 
 impl Default for Session {
@@ -100,6 +140,15 @@ impl Default for Session {
             decisions: BTreeMap::new(),
             advocate: AdvocateConfig::default(),
             provider: Box::new(StubProvider::new()),
+            // Default on-device path: a PER-USER, app-scoped data dir (NOT the shared
+            // world-readable temp dir), `0700`/`0600` on Unix (Finding 1). The Tauri host may
+            // override this via `with_tracker_store`; tests ALWAYS inject a temp-dir store.
+            tracker_store: Box::new(JsonFileStore::new(JsonFileStore::default_path())),
+            tracker_doc: TrackerDoc {
+                applications: vec![],
+                contacts: vec![],
+            },
+            tracker_loaded: false,
         }
     }
 }
@@ -208,6 +257,181 @@ impl Session {
     /// Command: record an approve(true)/reject(false) decision for a bullet id.
     pub fn set_decision(&mut self, evidence_id: &str, approved: bool) {
         self.decisions.insert(evidence_id.to_string(), approved);
+    }
+
+    // ── Item #5: the application tracker / CRM command surface ────────────────────
+    // Each command is a THIN wrapper: it calls a pure `aa-tracker` core, mutates the
+    // in-memory `tracker_doc`, and persists via the injected store. The wall clock is read
+    // ONCE at the boundary (`Date` is passed in by the host) and handed to the pure cores —
+    // the cores stay clock-free (R-SCH-3, R-TRK-CMD-4).
+
+    /// Construct a session with an explicit tracker store (tests inject a temp-dir store).
+    pub fn with_tracker_store(store: Box<dyn TrackerStore + Send + Sync>) -> Self {
+        Session {
+            tracker_store: store,
+            ..Session::default()
+        }
+    }
+
+    /// Lazily load the tracker document from the store on first tracker command (R-STO-1).
+    fn ensure_tracker_loaded(&mut self) -> Result<(), CommandError> {
+        if !self.tracker_loaded {
+            self.tracker_doc = self.tracker_store.load()?;
+            self.tracker_loaded = true;
+        }
+        Ok(())
+    }
+
+    /// Persist the in-memory tracker document via the store (atomic write, R-STO-2).
+    fn persist_tracker(&self) -> Result<(), CommandError> {
+        self.tracker_store.save(&self.tracker_doc)?;
+        Ok(())
+    }
+
+    /// The next deterministic synthetic id index for applications / contacts: the count of
+    /// existing records. Ids are `ap_<n>` / `ct_<n>` (R-TRK-6, R-CRM-1).
+    fn next_application_index(&self) -> usize {
+        self.tracker_doc.applications.len()
+    }
+    fn next_contact_index(&self) -> usize {
+        self.tracker_doc.contacts.len()
+    }
+
+    /// Command (R-TRK-6): create a new `Application` (state `Discovered`) from a
+    /// NormalizedJob JSON + caller document ids, persist, and return its synthetic id.
+    pub fn track_application(
+        &mut self,
+        job_json: &str,
+        document_ids: Vec<String>,
+    ) -> Result<String, CommandError> {
+        self.ensure_tracker_loaded()?;
+        let job = CoreJob::from_json(job_json).map_err(|e| CommandError::Import(e.to_string()))?;
+        let id = tracker_application_id(self.next_application_index());
+        self.tracker_doc.applications.push(Application {
+            id: id.clone(),
+            job,
+            document_ids,
+            state: AppState::Discovered,
+            submitted: None,
+            contact_id: None,
+            notes: vec![],
+        });
+        self.persist_tracker()?;
+        Ok(id)
+    }
+
+    /// Command (R-TRK-CMD-2): advance an application's lifecycle state. An illegal
+    /// transition surfaces as `CommandError::Tracker` (never a silent no-op). `submitted`
+    /// is stamped with the boundary `today` WHEN and ONLY WHEN the app enters `Applied`.
+    pub fn advance_application(
+        &mut self,
+        app_id: &str,
+        to: &str,
+        today: Date,
+    ) -> Result<(), CommandError> {
+        self.ensure_tracker_loaded()?;
+        let to_state = AppState::parse(to)?; // R-TRK-CMD-3: bad string → typed error
+        let app = self
+            .tracker_doc
+            .applications
+            .iter_mut()
+            .find(|a| a.id == app_id)
+            .ok_or_else(|| CommandError::Tracker(format!("unknown application: {app_id}")))?;
+        let next = transition(app.state, to_state)?; // R-TRK-CMD-2: illegal → typed error
+        app.state = next;
+        if next == AppState::Applied {
+            app.submitted = Some(today);
+        }
+        self.persist_tracker()?;
+        Ok(())
+    }
+
+    /// Command (R-CRM-1): create a `Contact`, persist, and return its synthetic id.
+    pub fn add_contact(
+        &mut self,
+        name: &str,
+        org: &str,
+        role: &str,
+        channel: &str,
+    ) -> Result<String, CommandError> {
+        self.ensure_tracker_loaded()?;
+        let channel = Channel::parse(channel)?; // R-TRK-CMD-3
+        let id = tracker_contact_id(self.next_contact_index());
+        self.tracker_doc.contacts.push(Contact {
+            id: id.clone(),
+            name: name.to_string(),
+            org: org.to_string(),
+            role: role.to_string(),
+            channel,
+        });
+        self.persist_tracker()?;
+        Ok(id)
+    }
+
+    /// Command (R-CRM-4): link a contact to an application, persist.
+    pub fn link_contact(&mut self, app_id: &str, contact_id: &str) -> Result<(), CommandError> {
+        self.ensure_tracker_loaded()?;
+        if !self.tracker_doc.contacts.iter().any(|c| c.id == contact_id) {
+            return Err(CommandError::Tracker(format!(
+                "unknown contact: {contact_id}"
+            )));
+        }
+        let app = self
+            .tracker_doc
+            .applications
+            .iter_mut()
+            .find(|a| a.id == app_id)
+            .ok_or_else(|| CommandError::Tracker(format!("unknown application: {app_id}")))?;
+        app.contact_id = Some(contact_id.to_string());
+        self.persist_tracker()?;
+        Ok(())
+    }
+
+    /// Command (R-CRM-3): append a note (outcome + text, dated `today`) to an application's
+    /// timeline, persist. The `outcome` string parses via the typed helper (R-TRK-CMD-3).
+    pub fn add_note(
+        &mut self,
+        app_id: &str,
+        outcome: &str,
+        text: &str,
+        today: Date,
+    ) -> Result<(), CommandError> {
+        self.ensure_tracker_loaded()?;
+        let outcome = Outcome::parse(outcome)?;
+        let idx = self
+            .tracker_doc
+            .applications
+            .iter()
+            .position(|a| a.id == app_id)
+            .ok_or_else(|| CommandError::Tracker(format!("unknown application: {app_id}")))?;
+        let app = self.tracker_doc.applications[idx].clone();
+        self.tracker_doc.applications[idx] = add_note(
+            app,
+            Note {
+                at: today,
+                outcome,
+                text: text.to_string(),
+            },
+        );
+        self.persist_tracker()?;
+        Ok(())
+    }
+
+    /// Command (R-CSH-*): build the deterministic daily call sheet for `today` over the
+    /// loaded tracker document. Read-only; clock injected (R-TRK-CMD-4).
+    pub fn daily_call_sheet(&mut self, today: Date) -> Result<Vec<CallSheetRow>, CommandError> {
+        self.ensure_tracker_loaded()?;
+        Ok(build_call_sheet(
+            &self.tracker_doc.applications,
+            &self.tracker_doc.contacts,
+            today,
+        ))
+    }
+
+    /// Command: list all tracked applications (for the tracker board). Read-only.
+    pub fn list_applications(&mut self) -> Result<Vec<Application>, CommandError> {
+        self.ensure_tracker_loaded()?;
+        Ok(self.tracker_doc.applications.clone())
     }
 
     /// Apply rejections to a view: drop any achievement explicitly rejected. A

@@ -148,3 +148,69 @@ No NEW pragma id is introduced — these fall under the existing **P-COV-1** rat
 The item-#3 core helper `requirement_for` (R-ADV-12, top-matching must-have or joined-list fallback)
 is covered to 100% by four L1 tests: top-match, no-single-match → joined list, unknown id → joined
 list, and empty-job → empty string.
+
+---
+
+# Coverage policy — item #5 (`crates/tracker`, application tracker / CRM)
+
+**Same floor: 100% of reachable code** (`cargo llvm-cov --workspace --all-targets`,
+`--fail-under-lines 99`). Workspace line coverage with item #5 is **99.27%** (above the floor).
+
+## `crates/tracker` — 100% lines on ALL FOUR pure cores, NO new pragmas
+Every reachable line of the four pure cores is covered to **100% lines** by the L1/L2 tests:
+- `lifecycle.rs` — the full `AppState × AppState` matrix is enumerated (legal-or-error per cell,
+  the non-vacuous twin proving the table is not trivially satisfiable), `Closed` terminal, and the
+  `AppState::parse` happy/bad-string arms;
+- `scheduler.rs` — the pinned aging boundaries (day 2/3/5/6/7/10/11), the month/year-boundary +
+  same-day `days_since`, the future-date clamp (DISCUSS-FUTUREDATE), and the window constants;
+- `callsheet.rs` — every brief field per row, deterministic priority ordering + tie-break,
+  template fill, actionable-only filtering, and the clock-injected two-days-differ case. The
+  priority/window logic is keyed on `NextAction` (the two actionable variants only), so there is
+  **no unreachable non-actionable arm** — every branch is exercised (no pragma);
+- `crm.rs` / `date.rs` — contact/note model, the timeline append + linkage resolution, the
+  `Channel`/`Outcome` parse arms, and the civil-day-number `Date` arithmetic (incl. leap day).
+
+The residual sub-line **region/branch** misses in `date.rs` (98.75% regions) and `lifecycle.rs`
+(97.60% regions) are NOT missed *lines* (both are **100% lines**): they are interior `match`/`if`
+fan-out the line metric already counts as covered. No pragma id is introduced — the cores meet the
+100%-of-reachable-**lines** floor with zero documented exceptions.
+
+## `apps/desktop/src-tauri` — command-layer tracker additions, existing P-COV-1/P-COV-2 classes
+The tracker command surface (`track_application`/`advance_application`/`add_contact`/`link_contact`/
+`add_note`/`daily_call_sheet`/`list_applications` + the `From<TransitionError>`/`From<ParseEnumError>`/
+`From<StoreError>` convs) and the `TrackerStore`/`JsonFileStore` adapter are covered by the L4 system
+tests (`tests/tracker_l4.rs`, `tests/tracker_store_errors_l4.rs`) and the L5 STORY
+(`tests/tracker_story_l5.rs`). Every observable error VALUE a caller can hit is exercised:
+- the illegal-transition `CommandError::Tracker` (with its non-vacuous legal twin), the bad-enum
+  `Channel`/`Outcome`/`AppState` strings, and the unknown-application/contact id errors;
+- the persistence round-trip (a second store over the same path loads the same doc), the atomic
+  temp+rename durability, the **load-of-corrupt-file `StoreError::Serde`** arm, and the
+  **save-to-an-unwritable-path `StoreError::Io`** arm.
+
+The residual misses in `tracker_store.rs` are the **infallible `to_string_pretty`
+serialize arm** (P-COV-1: serializing an in-memory struct of `String`/`Vec`/`Option`/number cannot
+fail) and the **defensive write/rename/chmod I/O closures** (P-COV-2: transient OS faults that
+cannot be triggered deterministically offline — the *reachable* read/parse error IS covered). The
+residual misses in `apps/desktop/src-tauri/src/lib.rs` are the tracker command `?`-operator
+early-return fragments (the short-circuit `Err` path the happy-path control flow does not take) —
+the **same P-COV-1** class already documented for item #3. No NEW pragma id is introduced.
+
+### Item #5 review (Finding 1) — per-user store hardening, 100% of reachable code, no new pragma
+The security hardening (per-user app-data default path, `0700`/`0600` Unix modes, non-predictable
+same-dir atomic temp) keeps `tracker_store.rs` at the 100%-of-reachable-lines floor with the SAME
+P-COV-1/P-COV-2 classes — by construction, NOT by widening the pragma surface:
+- the path-resolution branch logic is a **pure** `resolve_default_path(xdg, home, temp, tag)` +
+  `user_tag_from(user, username)` (env read only at the thin boundary), so EVERY branch — XDG
+  present / empty / absent, HOME present / empty / absent, the per-user temp fallback, and the
+  `USER`→`USERNAME`→`"shared"` precedence — is unit-tested **without racy env mutation**
+  (`#[cfg(test)]` in `tracker_store.rs`);
+- the atomic-write `tmp_path` no-filename / no-parent arms are exercised directly
+  (`tmp_path_handles_path_without_a_filename` / `_empty_path_without_a_parent`);
+- the Unix `0600`/`0700` SUCCESS path is an L4 coordinate
+  (`saved_file_is_owner_only_0600_and_dir_0700`, `#[cfg(unix)]`) and the same-dir temp location is
+  pinned by `temp_sibling_lives_in_the_store_dir_not_shared_temp`; the default path is pinned by
+  `default_path_is_per_user_app_scoped_not_shared_temp_file`.
+The only un-hit fragments remain the **defensive `create_dir_all`/`set_permissions` error
+closures** (P-COV-2: an injected dir already exists so the create+chmod success path runs, and the
+error arm is a transient-OS-fault closure that cannot be triggered deterministically offline —
+the create-dir failure IS observed via the save-to-an-unwritable-path L4 test). No NEW pragma id.

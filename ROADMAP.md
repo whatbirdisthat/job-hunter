@@ -67,10 +67,34 @@ panic/corrupt on length-changing `to_lowercase`). `extension/` holds only thin M
   fuzzing + a fidelity-overclaim corrected). Residuals deferred: real LinkedIn/Seek DOM fidelity
   (DISCUSS-DOM, synthetic-fixtures bar per R6) and localhost handoff (DISCUSS-HANDOFF).
 
-## TODO (being built in order, one PR per item)
+### 5. Application tracker / CRM ✅ (item-5-tracker-crm — PR open, awaiting merge)
+The phase-2 workflow layer (ARCHITECTURE.md layer 7), all deterministic + on-device, **no LLM**.
+New crate `crates/tracker` (`aa-tracker`, depends on `crates/core` only — one-way graph) holding
+FOUR PURE, clock-injected cores over a small `Date` value type (Ord/serde; civil-day arithmetic,
+no timezones): (1) **lifecycle** state machine `Discovered→Tailored→Applied→FollowUpDue→Interview→
+Closed` — explicit legal-transition table as data, illegal = typed `TransitionError`, `Closed`
+terminal, the full `AppState×AppState` matrix enumerated (non-vacuous twin); (2) **scheduler** —
+clock-injected aging rules with pinned boundary coordinates (day 2→None, 3/5→FirstFollowUp,
+6→None gap, 7/10→SecondFollowUp, 11+→Archive; future-date clamps to 0); (3) **call-sheet** builder
+— deterministic priority ordering + deterministic draft templates (no model), actionable-rows-only;
+(4) **CRM** — contact/note model, notes-as-event-timeline, application↔contact linkage, synthetic
+`ap_<n>`/`ct_<n>` ids. Persistence is a `TrackerStore` seam + `JsonFileStore` (atomic temp+rename,
+crash-safe) wired UNDER `apps/desktop/src-tauri` — the crate stays IO-free; **no sqlite/sqlcipher**
+enters the workspace (encryption-at-rest deferred to a dedicated storage slice behind the SAME seam,
+DISCUSS-STORAGE). New `Session` Tauri commands (`track_application`, `advance_application` —
+stamps `submitted` on entering Applied, `add_contact`, `link_contact`, `add_note`, `daily_call_sheet`,
+`list_applications`); `CommandError::Tracker` via `From<TransitionError>/<ParseEnumError>/<StoreError>`;
+the boundary reads the wall clock ONCE and passes `today` down (cores stay clock-free); enum strings
+parse via `::parse(&str)` → typed error, never panic. React tracker board + call-sheet view + contact
+panel (handler-react; local-only tests, the `ui` job stays continue-on-error per issue #2). EARS
+R-TRK-1..6 / R-SCH-1..7 / R-CSH-1..5 / R-CRM-1..5 / R-STO-1..3 (`doc/spec/item-5-tracker-crm.ears.md`);
+new `doc/schemas/tracker-doc.schema.json` + `tools/fake-data/validate-tracker.js` shim (non-vacuous
+negative self-test); L1–L5 + perf-delta gate (new tracked `doc/perf/desktop-tracker-story-baseline.txt`);
+100%-of-reachable LINES on all four pure cores with NO new pragmas (command-layer residuals = the
+existing P-COV-1/P-COV-2 classes); synthetic PII-free fixtures only. Spec `doc/spec/item-5-tracker-crm.md`,
+storage decision `doc/design/item-5-storage-decision.md`.
 
-### 5. Application tracker / CRM
-Application lifecycle, follow-up scheduler, daily call sheet, recruiter/contact CRM. On-device.
+## TODO (being built in order, one PR per item)
 
 ### 6. More CV templates + ATS-readability + keyword-coverage panels
 Additional Typst templates; ATS-readability checker; keyword-coverage visibility panel (not stuffing).

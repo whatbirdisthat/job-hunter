@@ -1,62 +1,52 @@
-# PR Review — item #3 Applicant Advocate LLM layer (`item-3-advocate-llm`)
+# PR_REVIEW.md — item #5 (Application tracker / CRM)
 
-**Range:** `main..item-3-advocate-llm` · **Gate:** always-on adversarial review (governance `pr-approval`)
+**Range:** `main..item-5-tracker-crm` · **Date:** 2026-06-13 · **Mode:** adversarial fan-out (refute-the-change) · **Governance:** pr-approval
 
-## VERDICT: PASS (after one NEEDS_REVISION round)
+## VERDICT: NEEDS_REVISION → (revised; see foot)
 
-Synthesised from six adversarial reviewer roles + SENTINEL's three-lens security-gate, each prompted
-to refute the change. Round 1 returned NEEDS_REVISION (2×HIGH, 2×MEDIUM, 2×LOW); all were remediated;
-round 2 re-review of the gating roles returned PASS.
+Max-severity rule across 6 reviewer roles + SENTINEL security-gate. One HIGH (security) + converging MEDIUMs (doc-vs-code path divergence found by three lenses; perf baseline too loose; stray doc artifact) gated the change on first pass. No CRITICAL — the security defect was latent (the Tauri host that would reach the insecure default is not wired in this slice). The deterministic logic, architecture, and regression surface were clean on first pass.
 
-## Roles run
+## Findings (first pass)
 
-| Lens | Round 1 | Round 2 |
-|---|---|---|
-| CORRECTNESS | NEEDS_REVISION | **PASS** |
-| SECURITY + PROMPT-INJECTION | NEEDS_REVISION | **PASS** |
-| ARCHITECTURE + REGRESSION | PASS | — |
-| SENTINEL pii-audit | PASS | — |
-| SENTINEL secret-scan | PASS (1 MEDIUM advisory → fixed) | — |
-| SENTINEL dependency-audit | REVIEW (1 HIGH no-TLS) | **resolved** |
+| # | Severity | Lens(es) | Locus | Finding |
+|---|----------|----------|-------|---------|
+| 1 | HIGH | SECURITY | `lib.rs` default + `tracker_store.rs` | `Session::default()` persisted plaintext PII to a fixed shared-temp path `std::env::temp_dir().join("aa-tracker.json")` (world-readable umask); predictable temp sibling written without O_EXCL/O_NOFOLLOW (symlink-follow / clobber). Strictly worse at-rest posture than slices 1-4 (in-memory). DISCUSS-STORAGE deferred *encryption*, NOT file *location*. |
+| 2 | MEDIUM | SECURITY, DOCUMENT | `doc/design/item-5-storage-decision.md` | Decision record stated the store path is "under the OS app-data dir; tests inject a temp dir" — but the shipped default WAS the temp dir (no prod `with_tracker_store` wiring; only tests called it). Doc misdescribed where the at-rest file lives. |
+| 3 | MEDIUM | PERFORMANCE | `doc/perf/desktop-tracker-story-baseline.txt` | Baseline `0.500000` vs ~0.001s measured steady-state ⇒ delta arm fired only above 1.5s (~1500× tolerance). Mechanism non-vacuous (proven by `perf_gate_l1.rs`), but THIS baseline too loose to catch a real 100-1000× regression of this story. |
+| 4 | MEDIUM | DOCUMENT | `doc/design/item-5-storage-decision.md:82-83` | Stray authoring-tool artifact lines `</content>` / `</invoke>` committed at the foot of the doc. |
+| L | LOW | CORRECTNESS, ARCHITECTURE | `lib.rs` default | (non-gating) default store eagerly built at the shared temp path; relates to #1/#2. |
+| S | SUGGESTION | CORRECTNESS | `tracker_store.rs` save | (non-gating) no fsync before rename — process-crash safe (claim satisfied) but not power-loss durable. |
 
-## Findings and disposition
+## Per-role verdicts (first pass)
+- CORRECTNESS — **PASS** (every fence-post / matrix / date-anchor probe refuted; logic correct)
+- REGRESSION — **PASS** (purely additive to `lib.rs`; existing perf baselines byte-identical; full workspace + UI suites green)
+- ARCHITECTURE — **PASS** (aa-tracker → aa-core only; pure cores, no clock/IO; real `TrackerStore` seam; honest deferral grounds)
+- SECURITY — **NEEDS_REVISION** (#1 HIGH, #2 MEDIUM)
+- PERFORMANCE — **NEEDS_REVISION** (#3 MEDIUM)
+- DOCUMENT — **NEEDS_REVISION** (#2, #4 MEDIUM)
+- SENTINEL security-gate — **PASS** (pii-audit clean — Contact carries no email/phone field; secret-scan clean; dependency-audit dependency-neutral, one local path crate, no external/transitive additions)
 
-| # | Sev | Finding | Disposition |
-|---|---|---|---|
-| 1 | HIGH | `HttpKeyProvider` plaintext-HTTP-only (ureq dropped TLS); cleartext bearer key | FIXED — `ureq/rustls` enabled under `live-http`; `https://`-only scheme guard (proven against 20 attack vectors, fails closed); Ollama loopback-only |
-| 2 | HIGH | ledger guard checks cited *id*, not rewritten *text*; live providers stamp the requested id → not a hallucination guard for live models | DOCUMENTED & DEFERRED — spec/ARCHITECTURE/live.rs now scope it as an EVIDENCE-ID guard (stub/CI path fully guarded, proven non-vacuously); R-ADV-RES-1/RES-2 must close before adapters are wired |
-| 3 | MEDIUM | `#[derive(Debug)]` on `HttpKeyProvider` leaks `api_key` | FIXED — manual redacting `Debug` (`api_key` → `"<redacted>"`); test asserts redaction |
-| 4 | MEDIUM | free-text PII inside `evidence_text` not scrubbed | DOCUMENTED — structural firewall blocks the `Person` block by type; free-text is user content (R-ADV-RES-3) |
-| 5 | LOW | cover-letter strength rewritten twice | FIXED — `build_cover_letter` runs before the bullet-rewrite loop; rewritten exactly once (new test) |
-
-## What IS guaranteed this slice (verified non-vacuously)
-
-- The LLM layer is OPTIONAL and OFF by default; the deterministic product ships fully without it
-  (`flag_off_is_byte_identical_to_deterministic`).
-- The EVIDENCE-ID is guarded by construction: a rewrite citing a dangling/absent id is BLOCKED at
-  export against the IMMUTABLE master CV and NAMED — for CV bullets AND cover-letter strengths
-  (`adversarial_stub_fabricates_dangling_id_blocks_export` + honest twin;
-  `fabricated_cover_letter_strength_id_blocks_export`).
-- Redaction is STRUCTURAL by type: the outbound `RewriteRequest` has no `Person` field
-  (`outbound_payload_has_no_master_cv_fields`, exact-key assertion).
-- No live model in CI by construction: `ureq` is absent from the default/desktop dependency tree;
-  the live adapters are uncompiled, unwired dead code behind `live-http`.
-- Honesty over fallback: flag-ON with an unreachable provider surfaces an explicit error, never a
-  silent deterministic fallback.
+## Adversarial verification (HIGH/MEDIUM refutation pass)
+- #1 escalation to CRITICAL **refuted**: no in-tree Tauri `generate_handler`/`manage()` reaches `Session::default()` for tracker persistence in this slice → held at HIGH (latent).
+- #3 OR-vacuity (the item-2 class) **refuted**: the gate has no `|| budget` disjunct; the issue is solely the loose baseline value → MEDIUM (gate-quality, not catastrophe).
 
 ## What was NOT reviewed
+- No running Tauri app / rendered UI crawl (UI proven by local RTL only, per the npm-registry CI constraint, issue #2).
+- Power-loss (vs process-crash) durability of the atomic write — noted as SUGGESTION.
+- Cross-platform OS app-data-dir behaviour (no host wiring yet to exercise).
 
-- Live-model behaviour against a real Ollama/BYO-key endpoint (no live model in CI by design; the
-  adapters are unwired this slice).
-- Tauri runtime IPC wiring (no `#[command]`/`invoke_handler` added this slice; the command surface is
-  exercised via the Rust `Session` and the React mock, per R-D3).
-- The `ui` CI job (non-blocking infra, issue #2 — runners can't reach any npm registry); UI tests
-  pass locally 14/14.
+## Resolution (revision 1) — VERDICT: PASS
 
-## KAIZEN tripwire (recorded by two reviewers)
+All gating findings fixed and re-verified by the originating reviewers on the revised diff:
 
-This verdict **flips to BLOCK** if a future diff wires a live adapter to a command (removes the
-`live-http` gate, or constructs `OllamaProvider`/`HttpKeyProvider` from `Session`) WITHOUT first
-landing the text-faithfulness check (R-ADV-RES-1) and parsing the model's own citation into the
-adopt/guard branch (R-ADV-RES-2). The disclosure is the gate; activation-without-closure is the
-regression to catch.
+| # | First-pass | Fix | Re-review |
+|---|-----------|-----|-----------|
+| 1 (HIGH, security) | shared-temp plaintext PII + symlink-followable temp | `Session::default()` → per-user app-data path (`$XDG_DATA_HOME`/`$HOME/.local/share` under `job-hunter/`); file 0600 + dir 0700 on Unix; non-predictable same-dir temp (`pid+nanos`); std-only, no new dep, no `unsafe`; perm test added | **SECURITY: PASS** |
+| 2 (MEDIUM, doc) | doc claimed app-data dir the code didn't take | doc rewritten to the true per-user-private 0600 posture | **SECURITY/DOCUMENT: PASS** |
+| 3 (MEDIUM, perf) | baseline 0.5 vs ~0.001s (delta arm dead) | baseline → `0.030000` (~30× steady-state; delta arm trips at 0.090s); README headroom rule added | **PERFORMANCE: PASS** |
+| 4 (MEDIUM, doc) | stray `</content>`/`</invoke>` artifact | removed | **DOCUMENT/PERFORMANCE: PASS** |
+
+### Residual (non-gating, accepted-with-rationale) — recorded as follow-up
+- **MEDIUM (accepted)** `tracker_store.rs` no-HOME fallback: on the `$TMPDIR/aa-tracker-<user>/job-hunter/` fallback path, only the leaf dir is chmodded 0700; the intermediate `aa-tracker-<user>` (predictable name in a world-writable tmp) is not, leaving a symlink-pre-plant redirect vector. **Does not gate:** unreachable whenever `HOME` is set (every real desktop / Tauri session — the production path); the 0600 file mode preserves PII *content* confidentiality even through a redirected dir (residual is integrity/DoS, not disclosure); the plaintext-but-private posture is documented. **Follow-up:** chmod each created ancestor (or `mkdir`-per-component with `O_NOFOLLOW`) on the temp fallback — carried alongside DISCUSS-STORAGE for the dedicated storage slice.
+
+**Final synthesized verdict: PASS.** Gates green locally: fmt ✓, clippy -D warnings ✓, `cargo test --workspace` ✓ (L1-L5), `llvm-cov --fail-under-lines 99` ✓ (99.12%), SENTINEL security-gate ✓ (PII/secrets/deps). Per `pr-approval` governance, FOUNDRY opens a PR; the human merges.

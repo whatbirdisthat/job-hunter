@@ -1,0 +1,17 @@
+[package]
+name = "aa-tracker"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Application tracker / CRM workflow layer (item #5). FOUR pure, clock-injected cores — lifecycle state machine, follow-up scheduler, daily call-sheet builder, recruiter/contact CRM model — over a small Ord/serde Date value type. NO IO, NO wall clock, NO LLM: `today` is always a parameter so every coordinate is deterministically testable. Persistence (TrackerStore/JsonFileStore) and the Tauri commands live in the command layer (apps/desktop/src-tauri), NOT here — the crate stays IO-free. Depends on aa-core ONLY (one-way crate graph)."
+
+[lib]
+name = "aa_tracker"
+path = "src/lib.rs"
+
+[dependencies]
+aa-core = { path = "../core" }
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true

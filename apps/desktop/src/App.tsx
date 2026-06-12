@@ -5,16 +5,33 @@
 
 import { useRef, useState } from "react";
 import { ReviewPanel } from "./ReviewPanel";
-import type { Bullet, CoverageReport, Commands } from "./commands";
+import { TrackerBoard } from "./TrackerBoard";
+import type {
+  Bullet,
+  CoverageReport,
+  Commands,
+  TrackedApplication,
+  TrackerCommands,
+  TrackerDate,
+} from "./commands";
 
 export interface AppProps {
   commands: Commands;
+  // Item #5 (optional): the application tracker / CRM surface. When supplied, an "Open
+  // tracker" affordance reveals the board / call-sheet / contact panel. Optional so the
+  // slice-1..3 flow (and its tests) need not provide the tracker commands.
+  tracker?: {
+    commands: TrackerCommands;
+    applications: TrackedApplication[];
+    today: TrackerDate;
+  };
 }
 
 type Step = "import" | "paste" | "review" | "done";
 
-export function App({ commands }: AppProps) {
+export function App({ commands, tracker }: AppProps) {
   const [step, setStep] = useState<Step>("import");
+  const [showTracker, setShowTracker] = useState(false);
   const [coverage, setCoverage] = useState<CoverageReport | null>(null);
   const [bullets, setBullets] = useState<Bullet[]>([]);
   const [importError, setImportError] = useState<string | null>(null);
@@ -66,6 +83,18 @@ export function App({ commands }: AppProps) {
   return (
     <main>
       <h1>Applicant Advocate</h1>
+      {tracker && (
+        <button aria-label="Open tracker" onClick={() => setShowTracker((v) => !v)}>
+          {showTracker ? "Close tracker" : "Open tracker"}
+        </button>
+      )}
+      {tracker && showTracker && (
+        <TrackerBoard
+          commands={tracker.commands}
+          applications={tracker.applications}
+          today={tracker.today}
+        />
+      )}
       {step === "import" && (
         <>
           <button aria-label="Import master CV" onClick={() => onImported("{}")}>
