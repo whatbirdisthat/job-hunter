@@ -37,7 +37,8 @@ override it** and the concrete v1 plan.
 
 The first shippable slice proves the core value loop end to end:
 
-1. Onboard master CV — import JSON, **or** parse a PDF/DOCX résumé into the schema; validate.
+1. Onboard master CV — **import JSON** and validate. (PDF/DOCX résumé parsing is a *later* slice —
+   see `doc/idea/applicant-advocate/`, which supersedes this list for slice scope.)
 2. Ingest one JD — paste or extension clip → Normalized Job JSON.
 3. Deterministic fit-score + coverage report + evidence map.
 4. Select/reorder evidence — reorder only, never invent; surface metric-rich bullets; strongest first.
