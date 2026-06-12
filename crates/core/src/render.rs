@@ -197,7 +197,16 @@ impl CliRenderer {
         }
         let out_path = data_path.with_extension("pdf");
 
-        let status = std::process::Command::new("typst")
+        // Deployment hooks (default-preserving). A bundled release sets these so the
+        // renderer finds the SHIPPED `typst` binary + fonts without the repo present;
+        // unset (CI / tests / dev) → byte-identical behaviour to before.
+        let typst_bin =
+            std::env::var_os("AA_TYPST_BIN").unwrap_or_else(|| std::ffi::OsString::from("typst"));
+        let font_path = std::env::var_os("AA_FONT_PATH")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|| std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fonts"));
+
+        let status = std::process::Command::new(&typst_bin)
             .arg("compile")
             .arg(self.root.join(template_rel))
             .arg(&out_path)
@@ -206,7 +215,7 @@ impl CliRenderer {
             .arg("--root")
             .arg(&self.root)
             .arg("--font-path")
-            .arg(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fonts"))
+            .arg(&font_path)
             .output()
             .map_err(|e| CoreError::Render(format!("spawn typst: {e}")))?;
 
