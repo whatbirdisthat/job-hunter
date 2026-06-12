@@ -1,0 +1,15 @@
+[package]
+name = "aa-cli"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Applicant Advocate CLI — tailor a CV + draft a cover letter (PDF) from a master CV + a job description, fully offline and evidence-guarded."
+
+[[bin]]
+name = "applicant-advocate"
+path = "src/main.rs"
+
+[dependencies]
+aa-core = { path = "../core" }
+aa-jobparse = { path = "../jobparse" }

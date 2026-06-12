@@ -1,0 +1,20 @@
+Senior Backend Engineer — Northwind Digital (Melbourne, hybrid)
+
+We are hiring a Senior Backend Engineer to own delivery of our payments platform
+end to end. You will design resilient services, mentor other engineers, and keep
+our systems fast and observable.
+
+Required:
+- 5+ years building production backend services
+- Strong Python or Go
+- AWS or GCP experience
+- You must have experience owning CI/CD pipelines
+- Strong stakeholder management
+
+Nice to have:
+- Kubernetes
+- Event-driven architecture
+- Fintech domain experience
+
+This is a synthetic, fictional job ad shipped as a sample. Any resemblance to a
+real company or posting is coincidental.
