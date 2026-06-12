@@ -1,0 +1,34 @@
+From: alerts@example.net
+To: subscriber@example.org
+Subject: 3 new jobs for your saved search
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="MULTI777"
+
+--MULTI777
+Content-Type: text/plain; charset=UTF-8
+
+We are hiring a Staff Platform Engineer at Northwind Robotics. Required: Rust.
+--MULTI777
+Content-Type: text/html; charset=UTF-8
+Content-Transfer-Encoding: quoted-printable
+
+<html><body>
+<h2>3 new jobs match your saved search</h2>
+<div class=3Dcard>
+<p>We are hiring a Staff Platform Engineer at Northwind Robotics.</p>
+<p>Required: Rust; Kubernetes; observability.</p>
+<p>Nice to have: Typst; embedded Linux.</p>
+</div>
+<div class=3Dcard>
+<p>We are hiring an Applied ML Engineer at Greywater Systems.</p>
+<p>Essential: Python; PyTorch; MLOps.</p>
+<p>Preferred: Rust; CUDA.</p>
+</div>
+<div class=3Dcard>
+<p>We are hiring a Senior Data Engineer at Tinker =26amp; Bell Studios.</p=
+>
+<p>Must have: SQL; dbt; data modelling.</p>
+<p>Desirable: Airflow; cost optimisation.</p>
+</div>
+</body></html>
+--MULTI777--

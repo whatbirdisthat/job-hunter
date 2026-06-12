@@ -10,6 +10,8 @@ gitignored `target/` file, which self-ratcheted and made the delta arm vacuous).
 | `cvimport-import-story-baseline.txt` | `crates/cvimport/tests/story_l5.rs` |
 | `desktop-story-baseline.txt` | `apps/desktop/src-tauri/tests/story_l5.rs` (deterministic export) |
 | `desktop-advocate-story-baseline.txt` | `apps/desktop/src-tauri/tests/story_l5.rs` (item #3 advocate-rewrite journey, flag ON + stub) |
+| `capture-clip-story-baseline.txt` | `packages/capture-core/test/story.test.mjs` (item #4 clip→json journey, `node --test`) |
+| `capture-email-story-baseline.txt` | `packages/capture-core/test/story.test.mjs` (item #4 email→jobs journey, `node --test`) |
 
 Each file holds a single number: the baseline wall-clock in seconds. The gate enforces TWO
 independent obligations (see `crates/cvimport/tests/perf_gate.rs`):

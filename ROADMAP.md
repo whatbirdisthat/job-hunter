@@ -40,11 +40,34 @@ free-text-PII residual doc, cover-letter single-rewrite). Documented residuals d
 adapter-wiring slice: R-ADV-RES-1 text-faithfulness for live models, R-ADV-RES-2 cited-id parsing,
 R-ADV-RES-3 free-text PII in evidence.
 
-## TODO (being built in order, one PR per item)
+### 4. Capture extension (MV3) + email saved-search ingestion ✅ (item-4-capture-extension — PR open, awaiting merge)
+Two compliant, USER-DRIVEN acquisition paths feeding the SAME strict Normalized Job JSON
+(`doc/schemas/normalized-job.schema.json`) — the first non-Rust (TypeScript) slice. Zero npm deps.
+Deterministic DOM→job and email→job logic lives as PURE `.mjs` cores in `packages/capture-core`
+(§F ported VERBATIM from `crates/jobparse`, byte-faithful on all normal input; one documented,
+tested unicode divergence-family that favours never-panic/no-corruption over the Rust oracle's
+panic/corrupt on length-changing `to_lowercase`). `extension/` holds only thin MV3 wiring.
+- **dom-extract core** (`htmlString → NormalizedJob`): zero-dep tolerant HTML→text then §F. The
+  content script reads the active tab's `outerHTML` on the user's click and calls the core.
+- **email-extract core** (`emlString → NormalizedJob[]`): zero-dep `.eml` (multipart/alternative,
+  QP+base64, UTF-8) → HTML→text → §F per posting (deterministic §F-sentence split).
+- **Handoff:** downloadable `.json` (the user imports via the existing path; byte-compatible with
+  `CoreJob::from_json`, no Rust change). Localhost handoff documented-as-deferred (needs new Rust
+  surface + security model — out of scope, see DISCUSS-HANDOFF).
+- **COMPLIANCE (non-negotiable):** user-driven capture ONLY. MV3 manifest permissions are exactly
+  `[activeTab, scripting, downloads]` — NO `host_permissions`, NO auto-injected `content_scripts`;
+  injection is programmatic + gesture-gated. No automated login/navigation/scraping/anti-bot evasion;
+  prohibitions stated verbatim in `manifest.json` + `extension/README.md`.
+- New zero-dep normalized-job validator (`packages/capture-core/src/validate-job.mjs` +
+  `tools/fake-data/validate-job.js` CLI). L1–L5 (perf-delta gated STORY); 100%-of-reachable coverage.
+  New BLOCKING CI job `capture-core` runs on `node --test` with NO npm install (honest gate despite
+  issue #2); `foundation`/`pii-guard`/`rust-workspace` unchanged. Synthetic PII-free fixtures only.
+  EARS R-EXT-* / R-EML-* / R-JOB-*; spec `doc/spec/item-4-capture-extension.md`. Adversarial review
+  PASS after two NEEDS_REVISION rounds (two HIGH port-fidelity divergences found by differential
+  fuzzing + a fidelity-overclaim corrected). Residuals deferred: real LinkedIn/Seek DOM fidelity
+  (DISCUSS-DOM, synthetic-fixtures bar per R6) and localhost handoff (DISCUSS-HANDOFF).
 
-### 4. Capture extension (MV3) + email saved-search ingestion
-"Clip this job" browser extension (DOM → Normalized Job JSON) + saved-search email parser. Compliant
-capture only — no automated login or scraping.
+## TODO (being built in order, one PR per item)
 
 ### 5. Application tracker / CRM
 Application lifecycle, follow-up scheduler, daily call sheet, recruiter/contact CRM. On-device.
