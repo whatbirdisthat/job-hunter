@@ -56,6 +56,20 @@ The first shippable slice proves the core value loop end to end:
 - Unit: parser rules, skill normalization, fit scoring, bullet ranking, schema validation, Typst render.
 - Fixture-based: synthetic personas + ≥10 synthetic job ads from `tools/fake-data`. **No real data in CI.**
 
+## Render path — DISCUSS-RENDER resolution (accepted risk R7, reversible)
+
+The first-slice contract (§H) specifies **embedded Typst, no shell-out** (a "no system dependency"
+property). The embedded `typst` crate is **currently uncompilable in our build environment**: it
+transitively requires `time ≥ 0.3.49`, but the crate mirror tops out at `time 0.3.48` (verified).
+Resolution: the render path sits behind a `Renderer` seam (`crates/core/src/render.rs`):
+- **`CliRenderer`** (default today) — invokes the `typst` binary; deterministic; meets the < 60 s budget.
+- **`EmbeddedRenderer`** (feature `embedded-typst`) — the §H contract verbatim; compiles unchanged the
+  moment a compatible `time` is available in the mirror.
+
+This is an **accepted, fully reversible slice-1 deviation** (option b): flip the feature when the
+mirror gains `time ≥ 0.3.49` — zero code change. The only slice-1 cost is a runtime dependency on the
+`typst` binary, at odds with §H's bundled intent; behaviour, determinism, and the budget are unaffected.
+
 ## Build handoff
 
 This foundation is handed to `/ideator` to refine into a build-ready package, then to FOUNDRY to

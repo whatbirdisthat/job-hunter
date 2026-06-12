@@ -48,6 +48,12 @@ target/
 *.pdf
 !doc/**/*.pdf                 # allow documentation PDFs if ever committed deliberately
 
+# Transient test/render artifacts (CliRenderer temp data + coverage perf baseline)
+/aa-render-*.json
+/aa-render-*.pdf
+/aa-view-test-*.cv.json
+story-perf-baseline.txt
+
 # OS / editor
 .DS_Store
 Thumbs.db

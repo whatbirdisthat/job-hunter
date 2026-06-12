@@ -1,0 +1,16 @@
+[package]
+name = "aa-jobparse"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Deterministic JD-text -> Normalized Job JSON parser (§F). Depends on serde only; never on aa-core (binding dependency rule)."
+
+[lib]
+name = "aa_jobparse"
+path = "src/lib.rs"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true

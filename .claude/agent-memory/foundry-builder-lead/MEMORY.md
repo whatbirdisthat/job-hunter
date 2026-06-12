@@ -1,0 +1,3 @@
+- [Handler gaps](handler-gaps.md) — no handler-tauri in roster; Tauri+SQLCipher maps to handler-rust
+- [Crate dependency rule](crate-dependency-rule.md) — core ⊥ jobparse; contract is the schema, not code
+- [Slice-1 scope authority](slice-scope-authority.md) — IDEA package supersedes ARCHITECTURE.md on scope
