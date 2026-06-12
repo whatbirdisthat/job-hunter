@@ -94,10 +94,33 @@ negative self-test); L1–L5 + perf-delta gate (new tracked `doc/perf/desktop-tr
 existing P-COV-1/P-COV-2 classes); synthetic PII-free fixtures only. Spec `doc/spec/item-5-tracker-crm.md`,
 storage decision `doc/design/item-5-storage-decision.md`.
 
-## TODO (being built in order, one PR per item)
-
-### 6. More CV templates + ATS-readability + keyword-coverage panels
-Additional Typst templates; ATS-readability checker; keyword-coverage visibility panel (not stuffing).
+### 6. More CV templates + ATS-readability + keyword-coverage panels ✅ (item-6-templates-ats — PR open, awaiting merge)
+Three deterministic capabilities (Typst templates + Rust core + React UI), all read-only/no-stuffing.
+- **Templates:** new single-column, ATS-friendly `templates/cv/compact.typ` (full-width header →
+  Summary → Skills as inline `Label: A · B · C` lists, NO rating-dot circles → Experience), the
+  deliberate contrast to classic's two-column sidebar. Same `master-cv.schema.json` data contract +
+  placeholder + bundled Liberation stack; CLI-renderable (new BLOCKING `foundation` smoke). Render seam
+  gains an ADDITIVE `CvTemplate {Classic, Compact}` enum + `render_cv_with_template` default trait
+  method (existing `render_cv`/free-fns/13 render tests UNCHANGED, backward-compatible Classic default);
+  `Modern` DEFERRED (omitted, no dead variant). embedded-typst keeps the Classic fallback (one-line
+  deferral). Selectable in the export flow (Tauri `export_application` template param, typed `CvTemplate::parse`
+  error on unknown + React `<select>`). Documented in `doc/design/pdf-look.md`.
+- **ATS-readability checker** (`crates/core/src/ats.rs`, PURE, no IO, no PDF parse, read-only
+  `&TailoredView`, deterministic, 100% line cov): five pinnable coordinates — ColumnReliance (Classic
+  WARN / Compact PASS), OverlyLong (>30 surfaced achievements), NonStandardHeadings (template-vocab ⊆
+  allow-list guard), MissingExtractableText, UnusualFont (always-Pass on the fixed Liberation stack).
+  Pass/Warn report surfaced as a React panel.
+- **Keyword-coverage panel** (`crates/core/src/keyword_coverage.rs`, PURE, read-only, deterministic,
+  100% line cov): for the current job's must/nice requirements, FOUND vs MISSING in the TAILORED view +
+  WHERE each found keyword appears — reuses `Candidate::matching_evidence_ids` ∩ `view.selected_ids`
+  (surfaced locations only), multi-section dedup. Visibility ONLY — never inserts/stuffs/fabricates.
+  React panel. Keys off `requirements` (job.keywords stays reserved — KAIZEN flag).
+- EARS R-TPL-1..8 / R-ATS-1..9 / R-KWC-1..8 (`doc/spec/item-6-templates-ats.ears.md`); plan
+  `doc/spec/item-6-templates-ats.plan.md`. Full L1–L5 + STORY (`templates_ats_story_l5.rs`: pick Compact
+  → export → ATS report → keyword panel) with a NEW perf-delta baseline
+  `doc/perf/desktop-templates-ats-story-baseline.txt`; 100%-of-reachable coverage (workspace 99.25%, both
+  new pure modules 100%, no new pragmas); synthetic PII-free personas only. `ui` job stays
+  continue-on-error per issue #2 (UI tests green locally, 24/24). **The backlog is now complete.**
 
 ## Constraints (apply to every item)
 - No PII in the repo; synthetic data only in tests/CI (PII firewall).

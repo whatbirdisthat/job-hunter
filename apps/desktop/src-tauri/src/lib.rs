@@ -13,9 +13,10 @@ use aa_advocate::{
     redact, redact_kind, AdvocateConfig, AdvocateProvider, RewriteKind, StubProvider,
 };
 use aa_core::{
-    assemble_application, build_cover_letter, coverage_report, cv_ledger, guard,
-    render_cover_letter, render_cv, requirement_for, tailor, CoverageReport, MasterCv,
-    NormalizedJob as CoreJob, TailoredView, DEFAULT_TOP_N,
+    assemble_application, ats_report, build_cover_letter, coverage_report, cv_ledger, guard,
+    keyword_coverage, render_cover_letter, render_cv_with_template, requirement_for, tailor,
+    AtsReport, CoverageReport, CvTemplate, KeywordCoverage, MasterCv, NormalizedJob as CoreJob,
+    TailoredView, DEFAULT_TOP_N,
 };
 use aa_tracker::{
     add_note, application_id as tracker_application_id, build_call_sheet,
@@ -556,11 +557,23 @@ impl Session {
     /// Command: export — ledger-guarded (§E/I2) render of two PDFs. Honours
     /// approve/reject decisions + the Applicant Advocate rewrite (when enabled). Returns
     /// lengths + coverage + provenance (the UI shows these; the STORY harness asserts
-    /// non-empty + the perf budget).
+    /// non-empty + the perf budget). Backward-compatible: defaults to the Classic CV
+    /// template (item #6, R-TPL-5) — delegates to [`Session::export_application_with`].
     pub fn export_application(&self) -> Result<(Vec<u8>, Vec<u8>, ExportResult), CommandError> {
+        self.export_application_with(CvTemplate::Classic)
+    }
+
+    /// Command (item #6, R-TPL-1/6): export with a SELECTED CV template. The cover
+    /// letter stays Classic (DISCUSS-A3: CV-only selection). The tailored view + ledger
+    /// guard + advocate path are identical to the no-arg export — only the CV `.typ`
+    /// differs.
+    pub fn export_application_with(
+        &self,
+        template: CvTemplate,
+    ) -> Result<(Vec<u8>, Vec<u8>, ExportResult), CommandError> {
         let p = self.prepare_export()?;
 
-        let cv_pdf = render_cv(&p.view).map_err(CommandError::from)?;
+        let cv_pdf = render_cv_with_template(&p.view, template).map_err(CommandError::from)?;
         let cover_letter_pdf = render_cover_letter(&p.letter).map_err(CommandError::from)?;
 
         let result = ExportResult {
@@ -572,6 +585,39 @@ impl Session {
             rewritten_ids: p.rewritten_ids,
         };
         Ok((cv_pdf, cover_letter_pdf, result))
+    }
+
+    /// Command (item #6, R-TPL-6/7): export selecting the CV template by its boundary
+    /// STRING (`"classic"`/`"compact"`). An unrecognised string surfaces a typed error
+    /// (never a panic, never a silent default) — `CvTemplate::parse` does the validation.
+    /// `None` defaults to Classic (backward-compatible, R-TPL-5).
+    pub fn export_application_template(
+        &self,
+        template: Option<&str>,
+    ) -> Result<(Vec<u8>, Vec<u8>, ExportResult), CommandError> {
+        let t = match template {
+            Some(s) => CvTemplate::parse(s).map_err(CommandError::from)?,
+            None => CvTemplate::default(),
+        };
+        self.export_application_with(t)
+    }
+
+    /// Command (item #6, R-ATS-1): the ATS-readability report for the CURRENT tailored
+    /// view under a chosen template. Read-only, pure, deterministic (R-ATS-2/8). The
+    /// template is taken as a boundary string so the UI selector drives it (R-TPL-7
+    /// validation reused).
+    pub fn ats_report(&self, template: &str) -> Result<AtsReport, CommandError> {
+        let t = CvTemplate::parse(template).map_err(CommandError::from)?;
+        let view = self.apply_decisions(self.tailored_view()?);
+        Ok(ats_report(t, &view))
+    }
+
+    /// Command (item #6, R-KWC-1): the keyword-coverage report over the CURRENT tailored
+    /// view + parsed job. Read-only, pure, deterministic (R-KWC-5/8).
+    pub fn keyword_coverage(&self) -> Result<KeywordCoverage, CommandError> {
+        let job = self.job.as_ref().ok_or(CommandError::NoJob)?;
+        let view = self.apply_decisions(self.tailored_view()?);
+        Ok(keyword_coverage(&view, job))
     }
 
     /// Convenience: full unguarded-by-decision assemble (used by the L4 system test).
@@ -690,6 +736,104 @@ mod tests {
         s.import_master_cv(&persona()).unwrap();
         s.parse_job(JD).unwrap();
         s.assemble().unwrap();
+    }
+
+    // ── item #6 — template selection + ATS + keyword boundary commands (L3) ──────
+    #[test]
+    fn export_with_compact_template_produces_valid_pdf() {
+        let mut s = Session::new();
+        s.import_master_cv(&persona()).unwrap();
+        s.parse_job(JD).unwrap();
+        let (cv_pdf, letter_pdf, result) = s
+            .export_application_with(aa_core::CvTemplate::Compact)
+            .expect("compact export");
+        assert!(aa_core::render::is_valid_pdf(&cv_pdf));
+        assert!(aa_core::render::is_valid_pdf(&letter_pdf));
+        assert_eq!(result.cv_pdf_len, cv_pdf.len());
+    }
+
+    #[test]
+    fn export_template_string_unknown_is_typed_error() {
+        // R-TPL-7: unknown boundary string → typed error, no panic, no silent default.
+        let mut s = Session::new();
+        s.import_master_cv(&persona()).unwrap();
+        s.parse_job(JD).unwrap();
+        let err = s
+            .export_application_template(Some("modern"))
+            .expect_err("unknown template errors");
+        assert!(err.to_string().to_lowercase().contains("template"));
+    }
+
+    #[test]
+    fn export_template_string_none_defaults_classic() {
+        let mut s = Session::new();
+        s.import_master_cv(&persona()).unwrap();
+        s.parse_job(JD).unwrap();
+        let (cv_pdf, _l, _r) = s.export_application_template(None).expect("default export");
+        assert!(aa_core::render::is_valid_pdf(&cv_pdf));
+    }
+
+    #[test]
+    fn ats_report_command_over_current_view() {
+        let mut s = Session::new();
+        s.import_master_cv(&persona()).unwrap();
+        s.parse_job(JD).unwrap();
+        let classic = s.ats_report("classic").unwrap();
+        let compact = s.ats_report("compact").unwrap();
+        // Classic column-reliance WARN, Compact PASS (R-ATS-3) across the command boundary.
+        assert_eq!(
+            classic
+                .check(aa_core::AtsCheckId::ColumnReliance)
+                .unwrap()
+                .status,
+            aa_core::AtsStatus::Warn
+        );
+        assert_eq!(
+            compact
+                .check(aa_core::AtsCheckId::ColumnReliance)
+                .unwrap()
+                .status,
+            aa_core::AtsStatus::Pass
+        );
+    }
+
+    #[test]
+    fn ats_report_command_rejects_unknown_template() {
+        let mut s = Session::new();
+        s.import_master_cv(&persona()).unwrap();
+        s.parse_job(JD).unwrap();
+        assert!(s.ats_report("bogus").is_err());
+    }
+
+    #[test]
+    fn keyword_coverage_command_over_current_view() {
+        let mut s = Session::new();
+        s.import_master_cv(&persona()).unwrap();
+        s.parse_job(JD).unwrap();
+        let cov = s.keyword_coverage().unwrap();
+        // The JD requires TypeScript/Python/AWS/etc; at least one must-have is surfaced.
+        assert!(
+            !cov.found.is_empty() || !cov.missing.is_empty(),
+            "coverage reports over the parsed job's requirements"
+        );
+    }
+
+    #[test]
+    fn keyword_coverage_requires_job() {
+        let mut s = Session::new();
+        s.import_master_cv(&persona()).unwrap();
+        assert!(matches!(s.keyword_coverage(), Err(CommandError::NoJob)));
+    }
+
+    #[test]
+    fn tailored_view_still_schema_conformant_after_item6() {
+        // L3: the view the new commands run over still round-trips as a MasterCv (§H).
+        let mut s = Session::new();
+        s.import_master_cv(&persona()).unwrap();
+        s.parse_job(JD).unwrap();
+        let view = s.tailored_view().unwrap();
+        let json = view.cv.to_json().unwrap();
+        assert!(aa_core::MasterCv::from_json(&json).is_ok());
     }
 
     #[test]

@@ -39,6 +39,17 @@ function stubCommands(over: Partial<Commands> = {}): Commands {
     exportApplication: vi
       .fn()
       .mockResolvedValue({ cvPdfLen: 1, coverLetterPdfLen: 1, aiUsed: false }),
+    // Item #6: ATS + keyword commands the review-step panels invoke.
+    atsReport: vi.fn().mockResolvedValue({
+      checks: [
+        { id: "ColumnReliance", status: "Warn", message: "multi-column" },
+        { id: "UnusualFont", status: "Pass", message: "liberation" },
+      ],
+    }),
+    keywordCoverage: vi.fn().mockResolvedValue({
+      found: [{ keyword: "Python", class: "MustHave", evidenceIds: ["exp_1_0"] }],
+      missing: [{ keyword: "Cobol", class: "MustHave", evidenceIds: [] }],
+    }),
     ...over,
   };
 }
@@ -162,5 +173,71 @@ describe("App — Applicant Advocate opt-in (item #3)", () => {
       expect(screen.getByText(/Exported cv.pdf/)).toBeInTheDocument(),
     );
     expect(screen.queryByLabelText("AI was used")).not.toBeInTheDocument();
+  });
+});
+
+// Item #6 — CV template selector + ATS panel + keyword panel in the review step.
+describe("App — item #6 templates / ATS / keyword (review step)", () => {
+  async function toReview(over: Partial<Commands> = {}) {
+    const commands = stubCommands(over);
+    const user = userEvent.setup();
+    render(<App commands={commands} />);
+    await user.click(screen.getByLabelText("Import master CV"));
+    await user.click(screen.getByLabelText("Paste JD"));
+    await waitFor(() =>
+      expect(screen.getByLabelText("CV template")).toBeInTheDocument(),
+    );
+    return { commands, user };
+  }
+
+  it("offers a template selector defaulting to classic", async () => {
+    await toReview();
+    const select = screen.getByLabelText("CV template") as HTMLSelectElement;
+    expect(select.value).toBe("classic");
+  });
+
+  it("export passes the selected template to exportApplication", async () => {
+    const exportApplication = vi
+      .fn()
+      .mockResolvedValue({ cvPdfLen: 1, coverLetterPdfLen: 1, aiUsed: false });
+    const { user } = await toReview({ exportApplication });
+    await user.selectOptions(screen.getByLabelText("CV template"), "compact");
+    await user.click(screen.getByLabelText("Export two PDFs"));
+    await waitFor(() =>
+      expect(exportApplication).toHaveBeenCalledWith("compact"),
+    );
+  });
+
+  it("re-queries the ATS report when the template changes", async () => {
+    const atsReport = vi.fn().mockResolvedValue({
+      checks: [{ id: "ColumnReliance", status: "Pass", message: "single-column" }],
+    });
+    const { user } = await toReview({ atsReport });
+    await waitFor(() => expect(atsReport).toHaveBeenCalledWith("classic"));
+    await user.selectOptions(screen.getByLabelText("CV template"), "compact");
+    await waitFor(() => expect(atsReport).toHaveBeenCalledWith("compact"));
+  });
+
+  it("renders ATS pass/warn rows", async () => {
+    await toReview();
+    await waitFor(() =>
+      expect(screen.getByTestId("ats-ColumnReliance")).toHaveAttribute(
+        "data-status",
+        "Warn",
+      ),
+    );
+    expect(screen.getByTestId("ats-UnusualFont")).toHaveAttribute(
+      "data-status",
+      "Pass",
+    );
+  });
+
+  it("renders keyword found/missing rows with locations", async () => {
+    await toReview();
+    await waitFor(() =>
+      expect(screen.getByTestId("kw-found-Python")).toBeInTheDocument(),
+    );
+    expect(screen.getByTestId("kw-found-Python")).toHaveTextContent("exp_1_0");
+    expect(screen.getByTestId("kw-missing-Cobol")).toBeInTheDocument();
   });
 });

@@ -9,6 +9,27 @@ use crate::normalize::{normalized_set, seed_aliases, tokenize};
 use crate::types::MasterCv;
 use std::collections::{HashMap, HashSet};
 
+/// Which CV namespace an evidence id belongs to (R-KWC-2). Distinguishes
+/// always-rendered sections (`Skill`, `Experience`) from achievement bullets, which
+/// the tailored view may prune — so a caller can gate only `Achievement` ids on the
+/// surfaced selection.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EvidenceKind {
+    /// A skill's declared `evidenceIds` — the Skills section renders unconditionally.
+    Skill,
+    /// An experience `id` — the experience entry renders unconditionally.
+    Experience,
+    /// An achievement bullet `id` — may be dropped by tailoring (top-N).
+    Achievement,
+}
+
+/// An evidence id tagged with the namespace it came from (R-KWC-2).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EvidenceId {
+    pub id: String,
+    pub kind: EvidenceKind,
+}
+
 /// The candidate pool: every normalized, alias-expanded token the master CV exposes
 /// for matching, plus the per-skill declared aliases folded into the alias map.
 pub struct Candidate {
@@ -83,14 +104,38 @@ impl Candidate {
 
     /// Evidence ids whose owning record contributes a token that satisfies this
     /// requirement — used by the coverage report (§B). Scans skills' evidenceIds,
-    /// experience ids, and achievement ids.
+    /// experience ids, and achievement ids. Deduped + sorted by id.
+    ///
+    /// Delegates to [`matching_evidence_ids_kinded`](Self::matching_evidence_ids_kinded)
+    /// and drops the kind, so the two methods can never diverge.
     pub fn matching_evidence_ids(&self, cv: &MasterCv, requirement: &str) -> Vec<String> {
+        self.matching_evidence_ids_kinded(cv, requirement)
+            .into_iter()
+            .map(|e| e.id)
+            .collect()
+    }
+
+    /// Like [`matching_evidence_ids`](Self::matching_evidence_ids) but each id is tagged
+    /// with the namespace it came from (`Skill` / `Experience` / `Achievement`), so a
+    /// caller can gate only achievement-bullet ids on a surfaced selection while treating
+    /// skill-evidence and experience ids as always rendered (R-KWC-2). Deduped (by id) +
+    /// sorted by id — identical id ordering to the untagged method.
+    pub fn matching_evidence_ids_kinded(
+        &self,
+        cv: &MasterCv,
+        requirement: &str,
+    ) -> Vec<EvidenceId> {
         let aliases = &self.aliases;
         let req: HashSet<String> = normalized_set(requirement, aliases).into_iter().collect();
-        let mut ids: Vec<String> = Vec::new();
-        let push = |id: &str, ids: &mut Vec<String>| {
-            if !ids.contains(&id.to_string()) {
-                ids.push(id.to_string());
+        let mut ids: Vec<EvidenceId> = Vec::new();
+        let push = |id: &str, kind: EvidenceKind, ids: &mut Vec<EvidenceId>| {
+            // dedupe on id only: the namespaces are disjoint, so the first kind seen for
+            // an id is authoritative (matches the untagged method's id-only dedupe).
+            if !ids.iter().any(|e| e.id == id) {
+                ids.push(EvidenceId {
+                    id: id.to_string(),
+                    kind,
+                });
             }
         };
 
@@ -110,7 +155,7 @@ impl Candidate {
                 }
                 if toks.intersection(&req).next().is_some() {
                     for ev in &s.evidence_ids {
-                        push(ev, &mut ids);
+                        push(ev, EvidenceKind::Skill, &mut ids);
                     }
                 }
             }
@@ -131,15 +176,15 @@ impl Candidate {
                     }
                 }
                 if toks.intersection(&req).next().is_some() {
-                    push(&a.id, &mut ids);
+                    push(&a.id, EvidenceKind::Achievement, &mut ids);
                     exp_match = true;
                 }
             }
             if exp_match {
-                push(&e.id, &mut ids);
+                push(&e.id, EvidenceKind::Experience, &mut ids);
             }
         }
-        ids.sort();
+        ids.sort_by(|x, y| x.id.cmp(&y.id));
         ids
     }
 }
@@ -228,6 +273,28 @@ mod tests {
             c.matching_evidence_ids(&cv, "Rust"),
             vec!["exp_z_b1".to_string()]
         );
+    }
+
+    #[test]
+    fn kinded_classifies_each_namespace() {
+        // One doc that exercises all three kinds for one requirement: a skill with a
+        // declared evidenceId, plus an achievement (and its owning experience) that
+        // matches the same token. Skill→Skill, experience id→Experience, bullet→Achievement.
+        let doc = r#"{"schemaVersion":"1.0.0","person":{},
+            "skills":[{"name":"Caching","proficiency":3,"aliases":[],"evidenceIds":["skill_ev"]}],
+            "experience":[
+              {"id":"e0","jobTitle":"T","businessName":"B","startDate":"Jan 2020","achievementsTasks":[
+                {"id":"e0_b0","description":"built a caching layer","metrics":[],"evidenceStrength":0.5}]}]}"#;
+        let cv = MasterCv::from_json(doc).unwrap();
+        let c = Candidate::from_master(&cv);
+        let kinded = c.matching_evidence_ids_kinded(&cv, "caching");
+        let kind_of = |id: &str| kinded.iter().find(|e| e.id == id).map(|e| e.kind);
+        assert_eq!(kind_of("skill_ev"), Some(EvidenceKind::Skill));
+        assert_eq!(kind_of("e0"), Some(EvidenceKind::Experience));
+        assert_eq!(kind_of("e0_b0"), Some(EvidenceKind::Achievement));
+        // sorted by id, deduped — same id ordering as the untagged method
+        let plain: Vec<String> = kinded.iter().map(|e| e.id.clone()).collect();
+        assert_eq!(plain, c.matching_evidence_ids(&cv, "caching"));
     }
 
     #[test]

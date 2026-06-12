@@ -23,6 +23,40 @@ export interface Bullet {
   role: string;
 }
 
+// ── Item #6: CV templates + ATS-readability + keyword-coverage ───────────────
+// The CV template the export flow renders. `Modern` is deferred (not shipped); the
+// Rust `CvTemplate` enum is exactly {Classic, Compact}. Unknown strings reject with a
+// typed error at the command boundary (R-TPL-7).
+export type CvTemplate = "classic" | "compact";
+
+export type AtsCheckId =
+  | "ColumnReliance"
+  | "OverlyLong"
+  | "NonStandardHeadings"
+  | "MissingExtractableText"
+  | "UnusualFont";
+export type AtsStatus = "Pass" | "Warn";
+
+export interface AtsCheck {
+  id: AtsCheckId;
+  status: AtsStatus;
+  message: string;
+}
+export interface AtsReport {
+  checks: AtsCheck[];
+}
+
+export type KeywordClass = "MustHave" | "NiceToHave";
+export interface KeywordHit {
+  keyword: string;
+  class: KeywordClass;
+  evidenceIds: string[];
+}
+export interface KeywordCoverage {
+  found: KeywordHit[];
+  missing: KeywordHit[];
+}
+
 // ── Item #5: the application tracker / CRM surface ───────────────────────────
 // Mirrors aa_tracker's value types (serde shape) + the new aa_desktop::Session
 // tracker commands. Dates marshal as { year, month, day } objects; AppState /
@@ -106,11 +140,19 @@ export interface Commands {
   setAdvocateEnabled(enabled: boolean): Promise<void>;
   // Item #3: export now reports `aiUsed` (R-ADV-10) so the UI can show an "AI was used"
   // badge. Surface-only provenance; no persistence this slice.
-  exportApplication(): Promise<{
+  // Item #6 (R-TPL-6): the export flow now takes an OPTIONAL CV template. Omitted /
+  // undefined → Classic (backward-compatible, R-TPL-5). An unknown string rejects with
+  // a typed error on the Rust side (R-TPL-7).
+  exportApplication(template?: CvTemplate): Promise<{
     cvPdfLen: number;
     coverLetterPdfLen: number;
     aiUsed: boolean;
   }>;
+  // Item #6 (R-ATS-1): the ATS-readability report for the current tailored view under a
+  // chosen template. Pure/read-only on the Rust side.
+  atsReport(template: CvTemplate): Promise<AtsReport>;
+  // Item #6 (R-KWC-1): the keyword-coverage report over the current tailored view + job.
+  keywordCoverage(): Promise<KeywordCoverage>;
 }
 
 // The full runtime surface composes the slice-1..3 commands with the item-#5 tracker
