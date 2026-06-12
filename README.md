@@ -75,5 +75,4 @@ typst compile templates/cv/classic.typ out.pdf \
 
 ## License
 
-Intended to be permissive open-source (free to use). Final license is being confirmed — see
-[`LICENSE`](LICENSE).
+[MIT](LICENSE) — free to use, modify, and distribute.

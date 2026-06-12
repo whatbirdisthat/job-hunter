@@ -29,9 +29,7 @@ letter** — deterministically, on-device, in under 60 seconds.
   Run a parsing spike before the import slice.
 - **R4 — setup friction (accepted).** Tauri + SQLCipher (+ later Ollama) suits the technical primary
   actor; revisit when broadening to non-technical actors.
-- **R5 — LICENSE (open, default recommended).** Public "free to use" needs a license; **recommend
-  MIT**. Owner to confirm before publishing usage grants (currently a placeholder `LICENSE`).
-  FOUNDRY must **not** publish under an implied grant until R5 closes.
+- **R5 — LICENSE (RESOLVED).** **MIT** chosen and committed (`LICENSE`, README updated). Free to use.
 - **R6 — JD parse robustness (accepted).** Deterministic must/nice classification (cues pinned in
   `first-slice.md §F`) is 100% on the synthetic fixtures but variable on free-form real JDs.
   Accepted for slice 1; the slice-1 acceptance bar is the synthetic fixtures only. Revisit with a
