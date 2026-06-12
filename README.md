@@ -1,5 +1,7 @@
 # job-hunter — the Applicant Advocate
 
+[![CI](https://github.com/whatbirdisthat/job-hunter/actions/workflows/ci.yml/badge.svg)](https://github.com/whatbirdisthat/job-hunter/actions/workflows/ci.yml)
+
 > Cut through the noise. A privacy-first, local-first assistant that turns one master CV into a
 > **tailored CV** and a **draft cover letter** for every job you apply to — every claim traceable
 > back to evidence you actually wrote.

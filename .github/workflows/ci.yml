@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  # ───────────────────────────────────────────────────────────────────────────
+  # PII firewall — the most important gate for a PUBLIC repo. Structural rules
+  # (not real identifiers) so this file never itself contains PII:
+  #   * every email-shaped token must use a reserved example domain
+  #   * no private-key material may be committed
+  # ───────────────────────────────────────────────────────────────────────────
+  pii-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Emails must use reserved example domains only
+        run: |
+          bad=$(git ls-files -z | xargs -0 grep -rhoiE '[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}' 2>/dev/null \
+                | sort -u | grep -viE '@example\.(com|org|net)$|@job-hunter\.example$' || true)
+          if [ -n "$bad" ]; then
+            echo "::error::Non-example email address found in tracked files (possible PII):"
+            echo "$bad"
+            exit 1
+          fi
+          echo "OK: all email tokens use reserved example domains."
+      - name: No private keys committed
+        run: |
+          if git ls-files -z | xargs -0 grep -lE 'BEGIN (RSA|OPENSSH|EC|DSA|PGP)? ?PRIVATE KEY' 2>/dev/null; then
+            echo "::error::Private key material found in tracked files."
+            exit 1
+          fi
+          echo "OK: no private-key material."
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # Foundation checks: synthetic data is deterministic, valid, and renders.
+  # ───────────────────────────────────────────────────────────────────────────
+  foundation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - uses: typst-community/setup-typst@v4
+
+      - name: Fixtures are deterministic (same seed → identical output)
+        run: |
+          node tools/fake-data/generate.js --seed 42 --personas 4 --jobs 6 --out /tmp/fx
+          diff -rq fixtures/personas /tmp/fx/personas
+          diff -rq fixtures/jobs /tmp/fx/jobs
+          echo "OK: regeneration is byte-identical to committed fixtures."
+
+      - name: Fixtures validate against the master-CV schema
+        run: node tools/fake-data/validate.js fixtures/personas/*.cv.json
+
+      - name: CV renders to PDF (smoke test)
+        run: |
+          typst compile templates/cv/classic.typ /tmp/sample-cv.pdf \
+            --input data=fixtures/personas/persona-001.cv.json --root .
+          test -s /tmp/sample-cv.pdf && echo "OK: PDF rendered."
+
+      - name: Upload sample CV PDF
+        uses: actions/upload-artifact@v4
+        with:
+          name: sample-cv
+          path: /tmp/sample-cv.pdf
