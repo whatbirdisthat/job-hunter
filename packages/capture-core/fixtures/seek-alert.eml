@@ -1,0 +1,21 @@
+From: jobs@example.org
+To: subscriber@example.com
+Subject: 1 new role matches your search
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="SEEKALERT9"
+
+--SEEKALERT9
+Content-Type: text/plain; charset=UTF-8
+
+We are hiring a Lead Frontend Engineer at Tinker & Bell Studios. Essential: TypeScript.
+--SEEKALERT9
+Content-Type: text/html; charset=UTF-8
+Content-Transfer-Encoding: base64
+
+PGh0bWw+PGJvZHk+CjxoMj5zZWVrLmV4YW1wbGUgc2F2ZWQgc2VhcmNoIGFsZXJ0PC9oMj4KPHA+
+V2UgYXJlIGhpcmluZyBhIExlYWQgRnJvbnRlbmQgRW5naW5lZXIgYXQgVGlua2VyICZhbXA7IEJl
+bGwgU3R1ZGlvcy48L3A+CjxwPllvdSB3aWxsIGNyYWZ0IHRoZSBzdHVkaW8gYW5hbHl0aWNzIGNv
+bnNvbGUuPC9wPgo8cD5Fc3NlbnRpYWw6IFR5cGVTY3JpcHQ7IGFjY2Vzc2liaWxpdHk7IGRlc2ln
+biBzeXN0ZW1zLjwvcD4KPHA+UHJlZmVycmVkOiBXZWJHTDsgbW90aW9uIGRlc2lnbjsgVHlwc3Qu
+PC9wPgo8L2JvZHk+PC9odG1sPg==
+--SEEKALERT9--

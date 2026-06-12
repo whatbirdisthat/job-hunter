@@ -1,0 +1,24 @@
+From: alerts@example.com
+To: subscriber@example.org
+Subject: Your saved search has 1 new job
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="NWALERT01"
+
+This is a multipart message in MIME format.
+--NWALERT01
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 7bit
+
+We are hiring a Principal SRE at Northwind Robotics. Required: Rust; Kubernetes.
+--NWALERT01
+Content-Type: text/html; charset=UTF-8
+Content-Transfer-Encoding: quoted-printable
+
+<html><body>
+<h2>New job for your saved search</h2>
+<p>We are hiring a Principal SRE at Northwind Robotics.</p>
+<p>You will own reliability for the autonomous fleet platform.</p>
+<p>Required: Rust; Kubernetes; incident command.</p>
+<p>Nice to have: Typst; chaos engineering; cost control.</p>
+</body></html>
+--NWALERT01--

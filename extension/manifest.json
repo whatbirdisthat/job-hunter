@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "Job Hunter — Clip this job",
+  "version": "0.1.0",
+  "description": "User-driven only. Clips the job you are viewing on a click. No automated login, no background scraping, no anti-bot evasion.",
+  "permissions": ["activeTab", "scripting", "downloads"],
+  "action": {
+    "default_popup": "src/popup.html",
+    "default_title": "Clip this job"
+  },
+  "background": {
+    "service_worker": "src/background.mjs",
+    "type": "module"
+  }
+}

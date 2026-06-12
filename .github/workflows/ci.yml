@@ -120,6 +120,51 @@ jobs:
           cargo llvm-cov --workspace --all-targets --summary-only --fail-under-lines 99
 
   # ───────────────────────────────────────────────────────────────────────────
+  # Capture-core gate (item #4): the TypeScript acquisition surface — the MV3
+  # "clip this job" extension + the saved-search email parser. The deterministic
+  # DOM→job and email→job logic lives as PURE .mjs cores in packages/capture-core
+  # (ported §F from crates/jobparse), with the extension wiring kept thin.
+  #
+  # BLOCKING and honest: this job needs NO `npm install`. The cores carry ZERO
+  # runtime/dev npm dependencies and run on Node's built-in test runner + built-in
+  # coverage — so unlike the `ui` job (issue #2), it can actually run on these
+  # registry-less runners and gate. L1 unit · L2 module · L3 boundary (output
+  # validates against normalized-job.schema.json) · L4 system (manifest validity +
+  # content-script smoke) · L5 STORY (clip→json + email→jobs, perf-delta gated).
+  # 100%-of-reachable coverage floor on the pure cores.
+  # ───────────────────────────────────────────────────────────────────────────
+  capture-core:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          # node 24 ships the built-in test runner + --experimental-test-coverage;
+          # NO registry access is needed (no `npm install`/`npm ci` step at all).
+          node-version: '24'
+      # L1–L5. Glob form (not bare dir positionals) — node 24's --test rejects a
+      # directory import (ERR_UNSUPPORTED_DIR_IMPORT); explicit *.test.mjs globs run.
+      - name: node --test (L1–L5, capture-core + extension) with coverage floor
+        run: |
+          node --test --experimental-test-coverage \
+            'packages/capture-core/test/*.test.mjs' \
+            'extension/test/*.test.mjs' 2>&1 | tee /tmp/capture-test.log
+          # 100%-of-reachable floor on the pure cores: parse the per-file coverage
+          # table and fail if ANY *.mjs row's LINE-% column (the first numeric
+          # column) is below 100. Anchored on column 1 so the branch/func columns
+          # cannot mask a line-coverage regression (the cores have no pragmas).
+          if awk -F'|' '/\.mjs +\|/ { gsub(/[^0-9.]/,"",$2); if ($2+0 < 100) { print "BELOW FLOOR:" $0; bad=1 } } END { exit bad }' /tmp/capture-test.log; then
+            echo "OK: capture-core L1–L5 green, 100% line coverage on the cores."
+          else
+            echo "::error::capture-core line coverage below the 100%-of-reachable floor."
+            exit 1
+          fi
+      - name: normalized-job CLI validator self-check (zero-dep)
+        run: |
+          node -e "import('./packages/capture-core/src/index.mjs').then(m=>{const fs=require('fs');const j=m.extractFromHtml(fs.readFileSync('packages/capture-core/fixtures/linkedin-job.html','utf8'));fs.writeFileSync('/tmp/clip.json',m.toJson(j))})"
+          node tools/fake-data/validate-job.js /tmp/clip.json
+
+  # ───────────────────────────────────────────────────────────────────────────
   # UI gate (slice 1): the React review-UI approve/reject component test (R-D3,
   # RTL + user-event). Full WebDriver E2E is deferred; the end-to-end journey is
   # proven by the Rust command-level STORY (L5) in the rust-workspace job.
