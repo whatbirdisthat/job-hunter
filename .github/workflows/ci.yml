@@ -175,15 +175,14 @@ jobs:
   # RTL + user-event). Full WebDriver E2E is deferred; the end-to-end journey is
   # proven by the Rust command-level STORY (L5) in the rust-workspace job.
   # ───────────────────────────────────────────────────────────────────────────
+  # BLOCKING. The earlier failure (issue #2) was NOT registry-unreachability — the
+  # committed apps/desktop/package-lock.json pins tarball URLs to the internal
+  # npm.local host, and `npm ci` follows those lockfile URLs directly (ignoring
+  # --registry). apps/desktop/.npmrc sets `replace-registry-host=always`, which
+  # rewrites that host to the active registry at install time, so `npm ci` is
+  # portable across runners. (Fix diagnosed by GitHub Copilot in PR #8.)
   ui:
     runs-on: ubuntu-latest
-    # NON-BLOCKING (infra, issue #2): these runners cannot reach ANY npm registry
-    # — `npm ci` hard-times-out at ~71s against both public npm and the mirror,
-    # on node 20 (npm 10) and node 24 (npm 11) alike. UI tests pass locally (6/6)
-    # and the journey is proven by the rust-workspace L5 STORY. Kept as node 20 +
-    # plain `npm ci` so it AUTO-GREENS once a registry is reachable on the runners
-    # — remove this continue-on-error then.
-    continue-on-error: true
     defaults:
       run:
         working-directory: apps/desktop
@@ -191,8 +190,6 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          # node 20 ships npm 10 — avoids the npm 11 "Exit handler never called"
-          # crash seen on node 24 against the runner's registry (issue #2).
           node-version: '20'
           cache: npm
           cache-dependency-path: apps/desktop/package-lock.json
