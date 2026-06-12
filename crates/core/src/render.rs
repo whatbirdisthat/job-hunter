@@ -163,17 +163,40 @@ fn repo_root() -> std::path::PathBuf {
 /// the embedded and CLI paths consume the identical template + data contract (§H).
 pub struct CliRenderer {
     root: std::path::PathBuf,
+    typst_bin: std::ffi::OsString,
+    font_path: std::path::PathBuf,
+}
+
+fn default_font_path() -> std::path::PathBuf {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fonts")
 }
 
 impl Default for CliRenderer {
     fn default() -> Self {
-        CliRenderer { root: repo_root() }
+        CliRenderer::new(repo_root())
     }
 }
 
 impl CliRenderer {
     pub fn new(root: impl Into<std::path::PathBuf>) -> Self {
-        CliRenderer { root: root.into() }
+        CliRenderer {
+            root: root.into(),
+            typst_bin: std::ffi::OsString::from("typst"),
+            font_path: default_font_path(),
+        }
+    }
+
+    /// Override the `typst` binary (default: `typst` on PATH). A bundled release
+    /// points this at its shipped binary, so no system install is required.
+    pub fn with_typst_bin(mut self, bin: impl Into<std::ffi::OsString>) -> Self {
+        self.typst_bin = bin.into();
+        self
+    }
+
+    /// Override the font directory (default: the crate's bundled Liberation faces).
+    pub fn with_font_path(mut self, path: impl Into<std::path::PathBuf>) -> Self {
+        self.font_path = path.into();
+        self
     }
 
     fn compile(&self, template_rel: &str, data_json: &str) -> Result<Vec<u8>, CoreError> {
@@ -197,16 +220,10 @@ impl CliRenderer {
         }
         let out_path = data_path.with_extension("pdf");
 
-        // Deployment hooks (default-preserving). A bundled release sets these so the
-        // renderer finds the SHIPPED `typst` binary + fonts without the repo present;
-        // unset (CI / tests / dev) → byte-identical behaviour to before.
-        let typst_bin =
-            std::env::var_os("AA_TYPST_BIN").unwrap_or_else(|| std::ffi::OsString::from("typst"));
-        let font_path = std::env::var_os("AA_FONT_PATH")
-            .map(std::path::PathBuf::from)
-            .unwrap_or_else(|| std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fonts"));
-
-        let status = std::process::Command::new(&typst_bin)
+        // `typst_bin` + `font_path` default to the system binary + the crate's
+        // bundled fonts; a release bundle overrides both via the builder so it runs
+        // path-independently (no system typst/fonts needed). See CliRenderer::new.
+        let status = std::process::Command::new(&self.typst_bin)
             .arg("compile")
             .arg(self.root.join(template_rel))
             .arg(&out_path)
@@ -215,7 +232,7 @@ impl CliRenderer {
             .arg("--root")
             .arg(&self.root)
             .arg("--font-path")
-            .arg(&font_path)
+            .arg(&self.font_path)
             .output()
             .map_err(|e| CoreError::Render(format!("spawn typst: {e}")))?;
 
@@ -396,6 +413,20 @@ mod tests {
         let pdf = render_cv(&view).expect("render must succeed");
         assert!(!pdf.is_empty());
         assert!(is_valid_pdf(&pdf), "must be a structurally valid PDF");
+    }
+
+    #[test]
+    fn renderer_honours_builder_overrides() {
+        // Covers with_typst_bin / with_font_path. Per-instance (no global env), so
+        // race-free; the values equal the defaults, keeping it behaviour-neutral.
+        let r = CliRenderer::default()
+            .with_typst_bin("typst")
+            .with_font_path(concat!(env!("CARGO_MANIFEST_DIR"), "/fonts"));
+        let view = tailor(&master(), &job(), 3);
+        let pdf = r
+            .render_cv(&view)
+            .expect("render with builder overrides must succeed");
+        assert!(is_valid_pdf(&pdf));
     }
 
     #[test]

@@ -123,7 +123,9 @@ jobs:
       # drops a covered path fails the gate.
       - name: coverage floor (cargo llvm-cov)
         run: |
-          cargo llvm-cov --workspace --all-targets --summary-only --fail-under-lines 99
+          cargo llvm-cov --workspace --all-targets \
+            --ignore-filename-regex 'crates/cli/' \
+            --summary-only --fail-under-lines 99
 
   # ───────────────────────────────────────────────────────────────────────────
   # Capture-core gate (item #4): the TypeScript acquisition surface — the MV3

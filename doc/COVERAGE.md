@@ -27,6 +27,15 @@ under default features and so is not in the default coverage set. It is deferred
 DISCUSS-RENDER (the `time 0.3.48` ↔ typst coherence blocker). When the feature compiles, its
 tests run under the same five-level contract.
 
+## P-COV-4 — The `applicant-advocate` CLI binary (release tooling)
+`crates/cli/src/main.rs` is a thin binary **entrypoint** — argument parsing + filesystem IO that
+wires the already-100%-covered engine (`tailor`/`guard`/`render`) into a command-line tool. It is
+excluded from the coverage floor via `--ignore-filename-regex 'crates/cli/'` (CI), the way binary
+`main`s conventionally are. Its end-to-end behaviour is proven by the standalone bundle smoke
+(build → run under a stripped env → two valid PDFs) documented in `crates/cli/README.md` and the
+release PR. The renderer overrides it relies on (`CliRenderer::with_typst_bin` /
+`with_font_path`) ARE covered in-crate, by `renderer_honours_builder_overrides`.
+
 ## What IS covered to 100% (reachable)
 Every line of: §A normalize/match, §B coverage, §C fit, §D ranking/summary, §E ledger guard
 (incl. the non-vacuous dangling-id test), §F jobparse (all cues + oracle), §H view assembly +

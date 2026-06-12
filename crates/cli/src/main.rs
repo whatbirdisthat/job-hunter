@@ -159,15 +159,16 @@ fn configure_renderer() -> CliRenderer {
     if let Ok(exe) = std::env::current_exe() {
         if let Some(dir) = exe.parent() {
             if dir.join("templates/cv/classic.typ").exists() {
+                let mut r = CliRenderer::new(dir);
                 let typst = dir.join("typst");
                 if typst.exists() {
-                    std::env::set_var("AA_TYPST_BIN", &typst);
+                    r = r.with_typst_bin(typst);
                 }
                 let fonts = dir.join("fonts");
                 if fonts.exists() {
-                    std::env::set_var("AA_FONT_PATH", &fonts);
+                    r = r.with_font_path(fonts);
                 }
-                return CliRenderer::new(dir);
+                return r;
             }
         }
     }
