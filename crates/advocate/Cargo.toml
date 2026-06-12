@@ -1,0 +1,33 @@
+[package]
+name = "aa-advocate"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Applicant Advocate LLM layer (item #3). Optional, feature-flagged, evidence-bounded rewrite/draft. Default features compile a provider trait + a deterministic StubProvider with NO network dependency; the live Ollama / BYO-key HTTP adapters sit behind `live-http`. Redacts before any call (the outbound RewriteRequest physically cannot carry Person PII), cites evidence ids, never invents. Depends on aa-core ONLY (one-way crate graph)."
+
+[lib]
+name = "aa_advocate"
+path = "src/lib.rs"
+
+[features]
+# Default: trait + deterministic stub only. NO network dependency compiled, so the
+# `--workspace` CI gate (aa-desktop depends on aa-advocate with DEFAULT features)
+# carries NO network code by construction.
+default = []
+# Live adapters (Ollama + BYO-key) behind an optional ureq dependency. Not in CI.
+# Enables ureq's `json` feature for `send_json` + JSON body reads, and `rustls`
+# so the BYO-key https endpoint transmits the bearer key + evidence over TLS.
+live-http = ["dep:ureq", "ureq/json", "ureq/rustls"]
+
+[dependencies]
+aa-core = { path = "../core" }
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+# Only pulled in under `live-http` (the live HTTP adapters). Off by default → the CI
+# gate never compiles a network stack. `default-features = false` keeps the proxy
+# surface minimal, but `rustls` is REQUIRED: without a TLS backend the BYO-key
+# endpoint would transmit the bearer key + evidence in CLEARTEXT. The adapters POST
+# JSON and read the response body directly.
+ureq = { version = "3", default-features = false, features = ["rustls"], optional = true }

@@ -9,10 +9,13 @@
 //!   import_master_cv → parse_job → compute_coverage → tailor → set_decisions →
 //!   export_application (ledger-guarded, two PDFs).
 
+use aa_advocate::{
+    redact, redact_kind, AdvocateConfig, AdvocateProvider, RewriteKind, StubProvider,
+};
 use aa_core::{
     assemble_application, build_cover_letter, coverage_report, cv_ledger, guard,
-    render_cover_letter, render_cv, tailor, CoverageReport, MasterCv, NormalizedJob as CoreJob,
-    TailoredView, DEFAULT_TOP_N,
+    render_cover_letter, render_cv, requirement_for, tailor, CoverageReport, MasterCv,
+    NormalizedJob as CoreJob, TailoredView, DEFAULT_TOP_N,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -30,6 +33,18 @@ pub enum CommandError {
     ExportBlocked(String),
     #[error("render failed: {0}")]
     Render(String),
+    /// The advocate flag was ON but the provider could not run (R-ADV-9). Surfaced
+    /// explicitly — NEVER a silent fallback to the deterministic text.
+    #[error("advocate failed: {0}")]
+    Advocate(String),
+}
+
+/// R-ADV-9: an advocate provider failure surfaces as an explicit command error, never a
+/// silent fallback to the deterministic path.
+impl From<aa_advocate::AdvocateError> for CommandError {
+    fn from(e: aa_advocate::AdvocateError) -> Self {
+        CommandError::Advocate(e.to_string())
+    }
 }
 
 impl From<aa_core::CoreError> for CommandError {
@@ -61,15 +76,35 @@ fn seam(parsed: &aa_jobparse::NormalizedJob) -> Result<CoreJob, CommandError> {
 /// In-memory application session — the state a Tauri command handler holds (the
 /// SQLCipher-backed store persists the imported master CV; for the command logic and
 /// the STORY harness this in-memory session is the unit of behaviour).
-#[derive(Default)]
+///
+/// Item #3: the session holds the advocate config (default DISABLED) + a provider. The
+/// provider is a boxed trait object so the live adapters (feature-gated) and the
+/// deterministic stub (CI) are interchangeable behind one seam. The default provider is
+/// the honest [`StubProvider`]; with the flag OFF it is never invoked.
 pub struct Session {
     master: Option<MasterCv>,
     job: Option<CoreJob>,
     /// per-achievement approve/reject decisions (true = approved/kept).
     decisions: BTreeMap<String, bool>,
+    /// Advocate feature flag (default `enabled == false`).
+    advocate: AdvocateConfig,
+    /// The advocate provider. Default = honest deterministic stub (no network).
+    provider: Box<dyn AdvocateProvider + Send + Sync>,
 }
 
-/// The export artefacts surfaced to the UI / STORY (two PDFs + coverage).
+impl Default for Session {
+    fn default() -> Self {
+        Session {
+            master: None,
+            job: None,
+            decisions: BTreeMap::new(),
+            advocate: AdvocateConfig::default(),
+            provider: Box::new(StubProvider::new()),
+        }
+    }
+}
+
+/// The export artefacts surfaced to the UI / STORY (two PDFs + coverage + provenance).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExportResult {
     #[serde(rename = "cvPdfLen")]
@@ -77,11 +112,57 @@ pub struct ExportResult {
     #[serde(rename = "coverLetterPdfLen")]
     pub cover_letter_pdf_len: usize,
     pub coverage: CoverageReport,
+    /// R-ADV-10: whether the advocate LLM rewrite ran for this export. Surface-only
+    /// (no SQLCipher persistence this slice) — drives the UI "AI was used" badge.
+    #[serde(rename = "aiUsed")]
+    pub ai_used: bool,
+    /// The provider name when `ai_used` (e.g. "stub" / "ollama"); `None` otherwise.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider: Option<String>,
+    /// R-ADV-10: the evidence ids whose text the advocate rewrote, for a per-bullet
+    /// "rewritten" badge in the review UI. Empty when the flag is off.
+    #[serde(
+        rename = "rewrittenIds",
+        default,
+        skip_serializing_if = "Vec::is_empty"
+    )]
+    pub rewritten_ids: Vec<String>,
+}
+
+/// The deterministic, pre-render artefact of an export (R-ADV-11 anchor): the guarded
+/// tailored view + cover letter + provenance, BEFORE the non-deterministic typst step.
+struct PreparedExport {
+    view: TailoredView,
+    letter: aa_core::CoverLetter,
+    rewritten_ids: Vec<String>,
+    ai_used: bool,
+    provider_name: &'static str,
+    coverage: CoverageReport,
 }
 
 impl Session {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Construct a session with an explicit advocate provider (used by the L4/L5 tests
+    /// to inject the honest / fabricating / unreachable stub). The flag still defaults
+    /// to OFF — call [`Session::set_advocate_enabled`] to opt in.
+    pub fn with_provider(provider: Box<dyn AdvocateProvider + Send + Sync>) -> Self {
+        Session {
+            provider,
+            ..Session::default()
+        }
+    }
+
+    /// Command (R-ADV-13): toggle the advocate feature on/off. Default is OFF.
+    pub fn set_advocate_enabled(&mut self, enabled: bool) {
+        self.advocate.enabled = enabled;
+    }
+
+    /// Whether the advocate flag is currently on (for the UI / tests).
+    pub fn advocate_enabled(&self) -> bool {
+        self.advocate.enabled
     }
 
     /// Command: import + validate a master-CV JSON (I1: stored immutable).
@@ -141,27 +222,130 @@ impl Session {
         view
     }
 
-    /// Command: export — ledger-guarded (§E/I2) render of two PDFs. Honours
-    /// approve/reject decisions. Returns lengths + coverage (the UI shows these; the
-    /// STORY harness asserts non-empty + the perf budget).
-    pub fn export_application(&self) -> Result<(Vec<u8>, Vec<u8>, ExportResult), CommandError> {
+    /// The DETERMINISTIC part of an export: build the decisions-applied tailored view +
+    /// cover letter, run the Applicant Advocate rewrite (when enabled), and run the §E
+    /// ledger guard — but stop BEFORE the (non-deterministic, timestamped) typst render.
+    /// Returns the guarded render inputs + provenance. Shared by `export_application`
+    /// (which renders) and `render_inputs` (which the flag-off equivalence test compares
+    /// — PDF bytes are not byte-stable across typst invocations per R-D2, so the
+    /// determinism anchor is this pre-render artefact, not the PDF).
+    fn prepare_export(&self) -> Result<PreparedExport, CommandError> {
         let cv = self.master.as_ref().ok_or(CommandError::NoMasterCv)?;
         let job = self.job.as_ref().ok_or(CommandError::NoJob)?;
 
-        let view = self.apply_decisions(self.tailored_view()?);
+        let mut view = self.apply_decisions(self.tailored_view()?);
 
-        // §E guard on the CV ledger before render/export.
+        // Build the cover letter from the ORIGINAL (pre-rewrite) view text. The letter's
+        // strength paragraphs are sourced from the same achievements as the CV bullets, so it
+        // MUST be assembled BEFORE the in-place CV bullet rewrite below — otherwise the
+        // strength loop would rewrite already-rewritten text (a double-prefix with the stub;
+        // a rewrite-of-rewrite drift with a live model). Each strength is therefore rewritten
+        // EXACTLY ONCE, from its original evidence text.
+        let mut letter = build_cover_letter(&view, job, cv);
+
+        // ── Item #3: the Applicant Advocate rewrite (R-ADV-7) ───────────────────────
+        // Runs BETWEEN apply_decisions and the EXISTING §E guard. When the flag is OFF
+        // this whole block is skipped → the render inputs are identical to the
+        // deterministic path (R-ADV-11). When ON, each bullet's text is rewritten by the
+        // provider; the bullet keeps its honest id ONLY when the provider cites it back,
+        // otherwise the bullet ADOPTS the (possibly fabricated) cited id so the guard
+        // below NAMES and BLOCKS it (R-ADV-8) — never a silent swap.
+        let mut rewritten_ids: Vec<String> = Vec::new();
+        if self.advocate.enabled {
+            for e in view.cv.experience.iter_mut() {
+                for a in e.achievements_tasks.iter_mut() {
+                    let requirement = requirement_for(cv, job, &a.id);
+                    let req = redact(a, &requirement);
+                    let resp = self.provider.rewrite(&req)?; // R-ADV-9: error surfaces
+                    if resp.cited_evidence_id == a.id {
+                        rewritten_ids.push(a.id.clone());
+                        a.description = resp.rewritten_text;
+                    } else {
+                        // adopt the cited (possibly fabricated) id → the guard will block it
+                        a.id = resp.cited_evidence_id;
+                    }
+                }
+            }
+        }
+
+        // §E guard on the CV ledger before render/export. After the advocate rewrite a
+        // dangling/absent cited id is checked against the IMMUTABLE master `cv` (not the
+        // view) — so a fabricated id is named and blocked here (R-ADV-8).
         guard(&cv_ledger(&view), cv)?;
 
-        let letter = build_cover_letter(&view, job, cv);
-        let cv_pdf = render_cv(&view).map_err(CommandError::from)?;
-        let cover_letter_pdf = render_cover_letter(&letter).map_err(CommandError::from)?;
+        // Cover-letter strength paragraphs get the SAME advocate re-entry + re-guard. The
+        // `letter` was built above from the ORIGINAL view text, so this rewrites each strength
+        // EXACTLY ONCE (not a rewrite-of-an-already-rewritten bullet).
+        if self.advocate.enabled {
+            for s in letter.strengths.iter_mut() {
+                // wrap the strength as an achievement-shaped evidence atom for redaction
+                let atom = aa_core::Achievement {
+                    id: s.source_evidence_id.clone(),
+                    description: s.text.clone(),
+                    emphasise: None,
+                    tags: vec![],
+                    metrics: vec![],
+                    evidence_strength: None,
+                };
+                let requirement = requirement_for(cv, job, &s.source_evidence_id);
+                let req = redact_kind(&atom, &requirement, RewriteKind::CoverLetterStrength);
+                let resp = self.provider.rewrite(&req)?;
+                if resp.cited_evidence_id == s.source_evidence_id {
+                    s.text = resp.rewritten_text;
+                } else {
+                    s.source_evidence_id = resp.cited_evidence_id;
+                }
+            }
+            // re-guard the (possibly rewritten) letter strengths against the master CV.
+            let mut letter_nodes: Vec<aa_core::LedgerNode> = Vec::new();
+            for (i, s) in letter.strengths.iter().enumerate() {
+                letter_nodes.push(aa_core::LedgerNode::claim(
+                    format!("letter.strength[{i}]"),
+                    s.source_evidence_id.clone(),
+                ));
+            }
+            guard(&letter_nodes, cv)?;
+        }
 
-        let coverage = coverage_report(cv, job);
+        Ok(PreparedExport {
+            view,
+            letter,
+            rewritten_ids,
+            ai_used: self.advocate.enabled,
+            provider_name: self.provider.name(),
+            coverage: coverage_report(cv, job),
+        })
+    }
+
+    /// The DETERMINISTIC render inputs the renderer would consume (R-ADV-11 anchor): the
+    /// guarded tailored-view CV JSON + the cover-letter JSON, plus `ai_used`. PDF bytes
+    /// are NOT byte-stable across typst invocations (R-D2), so the flag-off equivalence
+    /// test compares THESE inputs, not the output PDFs.
+    pub fn render_inputs(&self) -> Result<(String, String, bool), CommandError> {
+        let p = self.prepare_export()?;
+        let cv_json = p.view.cv.to_json().map_err(CommandError::from)?;
+        let letter_json =
+            serde_json::to_string(&p.letter).map_err(|e| CommandError::Render(e.to_string()))?;
+        Ok((cv_json, letter_json, p.ai_used))
+    }
+
+    /// Command: export — ledger-guarded (§E/I2) render of two PDFs. Honours
+    /// approve/reject decisions + the Applicant Advocate rewrite (when enabled). Returns
+    /// lengths + coverage + provenance (the UI shows these; the STORY harness asserts
+    /// non-empty + the perf budget).
+    pub fn export_application(&self) -> Result<(Vec<u8>, Vec<u8>, ExportResult), CommandError> {
+        let p = self.prepare_export()?;
+
+        let cv_pdf = render_cv(&p.view).map_err(CommandError::from)?;
+        let cover_letter_pdf = render_cover_letter(&p.letter).map_err(CommandError::from)?;
+
         let result = ExportResult {
             cv_pdf_len: cv_pdf.len(),
             cover_letter_pdf_len: cover_letter_pdf.len(),
-            coverage,
+            coverage: p.coverage,
+            ai_used: p.ai_used,
+            provider: p.ai_used.then(|| p.provider_name.to_string()),
+            rewritten_ids: p.rewritten_ids,
         };
         Ok((cv_pdf, cover_letter_pdf, result))
     }

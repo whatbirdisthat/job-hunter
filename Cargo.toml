@@ -4,6 +4,7 @@ members = [
     "crates/core",
     "crates/jobparse",
     "crates/cvimport",
+    "crates/advocate",
     "apps/desktop/src-tauri",
 ]
 
