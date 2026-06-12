@@ -42,6 +42,14 @@ impl From<aa_core::CoreError> for CommandError {
     }
 }
 
+/// A résumé import error surfaces to the UI as an import failure (R-CVI-8/10): the
+/// typed `ImportError` is carried verbatim in the message, never a panic.
+impl From<aa_cvimport::ImportError> for CommandError {
+    fn from(e: aa_cvimport::ImportError) -> Self {
+        CommandError::Import(e.to_string())
+    }
+}
+
 /// The jobparse → core seam (R-D1): jobparse emits its type, we serialize to the
 /// Normalized-Job JSON shape, then core deserializes its mirror type. If the JSON
 /// shapes diverge this fails loudly (the schema is the contract).
@@ -81,6 +89,18 @@ impl Session {
         let cv = MasterCv::from_json(json).map_err(|e| CommandError::Import(e.to_string()))?;
         self.master = Some(cv);
         Ok(())
+    }
+
+    /// Command (R-CVI-10): import a PDF/DOCX résumé's bytes into a NEW master-CV
+    /// document and return its JSON for the user to review. This NEVER mutates the
+    /// installed master CV (I1, R-CVI-9) — `self` is `&self`; the review JSON is
+    /// only installed when the user explicitly calls `import_master_cv` with it
+    /// (reusing slice-1 validation, no duplicate validation here). `kind` is the
+    /// `"pdf"`/`"docx"` string from the boundary; an unknown kind → typed error.
+    pub fn import_resume(&self, bytes: &[u8], kind: &str) -> Result<String, CommandError> {
+        let kind = aa_cvimport::ResumeKind::parse(kind)?;
+        let cv = aa_cvimport::import_resume(bytes, kind)?;
+        cv.to_json().map_err(CommandError::from)
     }
 
     /// Command: parse a pasted JD (§F) and stage it via the validated seam (R-D1).

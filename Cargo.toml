@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/core",
     "crates/jobparse",
+    "crates/cvimport",
     "apps/desktop/src-tauri",
 ]
 

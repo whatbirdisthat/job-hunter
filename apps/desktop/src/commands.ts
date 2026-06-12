@@ -27,6 +27,11 @@ export interface Bullet {
 // bridge at runtime; mocked in tests.
 export interface Commands {
   importMasterCv(json: string): Promise<void>;
+  // Item #2: parse a PDF/DOCX résumé's bytes into a NEW master-CV document and
+  // return its JSON for review (R-CVI-10). The bytes cross the Tauri boundary as a
+  // number[] (Array.from(new Uint8Array(file))) which marshals to Rust Vec<u8>;
+  // `kind` is "pdf" | "docx". Installation reuses importMasterCv (slice-1 path).
+  importResume(bytes: number[], kind: "pdf" | "docx"): Promise<string>;
   parseJob(rawJd: string): Promise<void>;
   computeCoverage(): Promise<CoverageReport>;
   tailoredBullets(): Promise<Bullet[]>;

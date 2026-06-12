@@ -72,11 +72,15 @@ jobs:
           path: /tmp/sample-cv.pdf
 
   # ───────────────────────────────────────────────────────────────────────────
-  # Rust workspace gate (slice 1): the deterministic tailoring engine + command
-  # layer. Gate order: fmt → clippy -D warnings → test L1–L5 → coverage floor.
-  # Render uses the CLI typst path (typst-community/setup-typst); the embedded §H
-  # path is behind the `embedded-typst` feature (deferred — see doc/COVERAGE.md /
-  # DISCUSS-RENDER). The `foundation` CV render smoke stays green unchanged.
+  # Rust workspace gate (slice 1 + item #2): the deterministic tailoring engine +
+  # command layer + the résumé-import crate (crates/cvimport). Gate order: fmt →
+  # clippy -D warnings → test L1–L5 → coverage floor. The cvimport crate rides this
+  # gate automatically as a `[workspace].members` entry — `cargo test/clippy/llvm-cov
+  # --workspace` pick it up; its L3/L5 tests reuse the `node` validator and the
+  # `typst` CLI already installed below (no new tooling). Render uses the CLI typst
+  # path (typst-community/setup-typst); the embedded §H path is behind the
+  # `embedded-typst` feature (deferred — see doc/COVERAGE.md / DISCUSS-RENDER). The
+  # `foundation` CV render smoke stays green unchanged.
   # ───────────────────────────────────────────────────────────────────────────
   rust-workspace:
     runs-on: ubuntu-latest

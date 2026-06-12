@@ -34,10 +34,19 @@ fn job() -> NormalizedJob {
     }
 }
 
-/// Validate a master-CV-shaped JSON string with the existing Node validator.
+use std::sync::atomic::{AtomicU64, Ordering};
+static SEQ: AtomicU64 = AtomicU64::new(0);
+
+/// Validate a master-CV-shaped JSON string with the existing Node validator. Each
+/// call uses a UNIQUE temp file (pid + atomic seq) so concurrent test threads (esp.
+/// under `cargo llvm-cov`, which changes timing) never race on the same path.
 fn validate_with_node(json: &str) -> (bool, String) {
     let root = repo_root();
-    let tmp = root.join(format!("aa-view-test-{}.cv.json", std::process::id()));
+    let tmp = root.join(format!(
+        "aa-view-test-{}-{}.cv.json",
+        std::process::id(),
+        SEQ.fetch_add(1, Ordering::Relaxed)
+    ));
     {
         let mut f = std::fs::File::create(&tmp).unwrap();
         f.write_all(json.as_bytes()).unwrap();

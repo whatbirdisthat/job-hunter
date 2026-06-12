@@ -189,3 +189,64 @@ cargo 1.96.0 · rustc 1.96.0 · node v24.16.0 · npm 11.13.0 · typst 0.14.2 · 
 R2 (deterministic-only cover letters may read flat — accepted), R3 (PDF/DOCX import deferred),
 R4 (Tauri/SQLCipher setup friction — accepted for technical primary actor), R6 (JD-parse robustness on
 free-form JDs — accepted; slice-1 bar is the synthetic fixtures only). R5 (license) RESOLVED: MIT.
+
+---
+
+## 12. Item #2 — PDF/DOCX résumé import (R3, deferred from slice 1)
+
+> Append-only addition by FOUNDRY builder-lead, 2026-06-13, for ROADMAP item #2. The parsing-strategy
+> spike (`doc/idea/applicant-advocate/spike-resume-import.md`) is **COMPLETE** and its library/architecture
+> choices are FINAL — see §12.3. Deterministic; **NO LLM** (the LLM layer is item #3).
+
+### 12.1 What item #2 adds
+
+A second onboarding path: instead of importing a master CV as JSON (slice 1), the user imports an existing
+**PDF or DOCX résumé**, which is parsed **deterministically** into a **new** master-CV document
+(`doc/schemas/master-cv.schema.json`) that the user reviews before installing. Honours I1 (immutable): the
+import produces a *new* document for review; it never silently mutates a loaded master CV. The product value
+is **honest, deterministic structure** — no invented fields, no LLM guessing.
+
+### 12.2 New domain terms (item #2)
+
+- **Résumé import** — the act of turning an existing PDF/DOCX résumé file into a master-CV document.
+- **Extraction** — getting raw text out of a file: PDF → flat text stream (`pdf-extract`); DOCX →
+  per-paragraph text (`zip` + `quick-xml` over `word/document.xml`). DOCX is higher fidelity (preserves
+  paragraph boundaries); PDF text is a flat stream with **no reliable newlines** (spike finding).
+- **Segment** — a labelled region of the extracted text recognised by heuristic cue tokens
+  (header block, a "Skills/Technologies" segment, experience blocks `title @ company · dates`).
+- **Segmenter / mapper** — the hand-written deterministic component that turns segments into master-CV
+  nodes (`person`/`headline`, skill lists, `experience[]` + `achievementsTasks[]`).
+- **Synthetic id** — a stable, deterministic id assigned to every produced experience/achievement node
+  (`imp_exp_0`, `imp_exp_0_b1`, …) since an imported résumé carries no evidence ids. These mirror the
+  evidence-ledger id shape (§6 I2) so downstream tailoring resolves them unchanged.
+- **`ImportError`** — the typed error surfaced on unsupported `kind`, undecodable/garbage bytes, or
+  empty/structureless extraction; surfaced across the Tauri boundary without panicking (parse-don't-
+  validate, I5).
+
+### 12.3 Station / handler map — item #2 addition (extends §8)
+
+| Concern | Technology | FOUNDRY handler |
+|---|---|---|
+| Résumé import (`crates/cvimport`) — PDF/DOCX text extraction + deterministic segment→master-CV mapping | Rust 1.96, `pdf-extract 0.10`, `zip`, `quick-xml`; **`docx-rs 0.4` dev-dependency only** (synthetic DOCX fixtures); depends on **`crates/core` only** | **handler-rust** |
+| `import_resume(bytes, kind)` Tauri command (`apps/desktop/src-tauri`) — returns parsed MasterCv JSON for review; reuses existing `import_master_cv` validation to install | Rust 1.96, Tauri 2.x | **handler-rust** |
+| Onboarding "import résumé" option (`apps/desktop/src`) — second import option **alongside** the existing JSON import | React, TypeScript 5.x | **handler-react** |
+
+**One-way crate graph (preserved):** `crates/cvimport` → `crates/core` only. It MUST NOT depend on
+`crates/jobparse`, `aa-desktop`, or the render path. Added to `[workspace].members`. `aa-desktop` gains a
+dependency on `cvimport` (it already depends on `core` + `jobparse`; it is the only crate wiring seams).
+
+### 12.4 Invariant inheritance (item #2)
+
+- **I1 (immutable):** import yields a NEW master-CV document for review; never mutates a loaded one.
+- **I4 (no PII):** **no committed binary fixtures.** Tests render a *persona* (`fixtures/personas/*.cv.json`)
+  to PDF via `templates/cv/classic.typ` and synthesise a DOCX from the same persona at test time. pii-guard
+  stays green.
+- **I5 (deterministic):** same input bytes → same master-CV output. No network, no LLM.
+
+### 12.5 Accepted risk (carried, slice-scoped)
+
+**R3a:** real-world résumé layouts (multi-column, tables, graphics) defeat flat-text heuristics. The
+acceptance bar for item #2 is the **synthetic personas rendered to PDF / synthesised to DOCX** (mirrors R6's
+posture for JD parsing). Robustness on arbitrary real résumés is out of scope and is the natural home for
+the later evidence-bounded LLM layer (item #3). **R3b:** `pdf-extract` line-joins adjacent layout lines —
+mitigated by segmenting on cue tokens, not newlines, and proven by the round-trip STORY.

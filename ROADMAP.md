@@ -10,11 +10,18 @@ select & reorder evidence (review UI) → render tailored CV PDF + templated cov
 Rust core + jobparse + Tauri/React UI; §A–H algorithms; evidence-ledger guard. CliRenderer behind a
 seam (R7). 100%-of-reachable coverage; acceptance green on synthetic fixtures.
 
-## TODO (being built in order, one PR per item)
+### 2. PDF/DOCX résumé import → master-CV schema ✅ (item-2-resume-import — PR open, awaiting merge)
+Deterministic onboarding path R3: parse an existing PDF/DOCX résumé into a NEW canonical master-CV
+document the user reviews (never mutates a loaded one; I1). New crate `crates/cvimport` (depends on
+`crates/core` only): PDF via `pdf-extract`, DOCX via `zip`+`quick-xml` (read) / `docx-rs` (dev-only
+synthetic fixtures), hand-written deterministic cue-token segmenter → person/skills/experience+
+achievements with synthetic stable ids. Output validated against `master-cv.schema.json`. Wired as a
+Tauri `import_resume` command + a second onboarding import option in the React UI. No LLM. Spike:
+`doc/idea/applicant-advocate/spike-resume-import.md`. EARS R-CVI-1..10; L1–L5 + perf-delta gate;
+100%-of-reachable coverage (P-COV-cvimport-1/2/3); PII-free synthetic fixtures only. Adversarial
+review PASS after one BLOCK round (UTF-8 panic + DOCX decompression-bomb cap + non-vacuous perf gate).
 
-### 2. PDF/DOCX résumé import → master-CV schema · PRIORITY: NOW
-Parse an existing résumé (PDF/DOCX) into the canonical master-CV schema (deterministic; run a
-parsing-strategy spike first; R3). Validate output against `master-cv.schema.json`. No LLM.
+## TODO (being built in order, one PR per item)
 
 ### 3. Applicant Advocate LLM layer
 Optional, feature-flagged, evidence-bounded rewrite/draft over local Ollama or a user-supplied key.
