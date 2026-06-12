@@ -70,3 +70,66 @@ jobs:
         with:
           name: sample-cv
           path: /tmp/sample-cv.pdf
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # Rust workspace gate (slice 1): the deterministic tailoring engine + command
+  # layer. Gate order: fmt → clippy -D warnings → test L1–L5 → coverage floor.
+  # Render uses the CLI typst path (typst-community/setup-typst); the embedded §H
+  # path is behind the `embedded-typst` feature (deferred — see doc/COVERAGE.md /
+  # DISCUSS-RENDER). The `foundation` CV render smoke stays green unchanged.
+  # ───────────────────────────────────────────────────────────────────────────
+  rust-workspace:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy, llvm-tools-preview
+      - uses: typst-community/setup-typst@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install Liberation fonts (CLI render parity with bundled faces)
+        run: sudo apt-get update && sudo apt-get install -y fonts-liberation
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+
+      # 1. fmt
+      - name: cargo fmt --check
+        run: cargo fmt --all --check
+
+      # 2. clippy (deny warnings)
+      - name: cargo clippy --all-targets -D warnings
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      # 3-7. L1 unit · L2 module · L3 boundary · L4 system · L5 STORY (perf-delta)
+      #      all run under cargo test --workspace; L3 reuses tools/fake-data/validate.js
+      #      to assert the tailored view conforms to master-cv.schema.json.
+      - name: cargo test --workspace (L1–L5)
+        run: cargo test --workspace --all-targets
+
+      # Coverage floor: 100% of reachable code. Documented pragmas (doc/COVERAGE.md)
+      # are the only lines below; we enforce a high line floor so a regression that
+      # drops a covered path fails the gate.
+      - name: coverage floor (cargo llvm-cov)
+        run: |
+          cargo llvm-cov --workspace --all-targets --summary-only --fail-under-lines 99
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # UI gate (slice 1): the React review-UI approve/reject component test (R-D3,
+  # RTL + user-event). Full WebDriver E2E is deferred; the end-to-end journey is
+  # proven by the Rust command-level STORY (L5) in the rust-workspace job.
+  # ───────────────────────────────────────────────────────────────────────────
+  ui:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm install
+      - name: vitest (review-UI component test)
+        run: npm test

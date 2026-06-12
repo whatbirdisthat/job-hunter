@@ -1,0 +1,31 @@
+[package]
+name = "aa-core"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Applicant Advocate deterministic tailoring engine: master-CV types, normalize/match (§A), coverage (§B), fit (§C), ranking/summary/view assembly (§D/§H), evidence-ledger guard (§E), Typst render (§H)."
+
+[lib]
+name = "aa_core"
+path = "src/lib.rs"
+
+[features]
+# Default render path = subprocess `typst compile` (CliRenderer). Works in this
+# environment today. See DISCUSS-RENDER / agent-memory: the embedded crate path
+# cannot compile here due to a `time 0.3.48` ↔ typst coherence bug in the mirror.
+default = []
+# The §H contract: in-process embedded Typst via typst-as-lib (custom World, bundled
+# fonts, in-memory VFS). Enable once a compatible `time` is vendored. No code change
+# beyond the flag — the EmbeddedRenderer is already written behind it.
+embedded-typst = ["dep:typst", "dep:typst-pdf", "dep:typst-as-lib"]
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+typst = { version = "0.14", optional = true }
+typst-pdf = { version = "0.14", optional = true }
+typst-as-lib = { version = "0.15", optional = true }
+
+[dev-dependencies]

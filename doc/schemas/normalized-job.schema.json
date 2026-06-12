@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://job-hunter.example/schemas/normalized-job.schema.json",
+  "title": "Normalized Job",
+  "description": "The deterministic parse of a pasted job description, produced by crates/jobparse from raw JD text (algorithm §F). It is the value contract on the jobparse->core seam (R-D1): jobparse validates its OUTPUT against this schema; core validates its INPUT against the same schema. The two crates stay fully decoupled — the seam is the JSON shape, symmetric with master-cv.schema.json. Field names are camelCase.",
+  "type": "object",
+  "required": ["title", "company", "requirements"],
+  "additionalProperties": false,
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "Job title parsed from the JD (may be empty if no title line is present)."
+    },
+    "company": {
+      "type": "string",
+      "description": "Hiring company parsed from the JD (may be empty)."
+    },
+    "location": {
+      "type": "string",
+      "description": "Location string parsed from the JD; empty when absent."
+    },
+    "responsibilities": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Responsibility lines parsed from the JD."
+    },
+    "requirements": {
+      "type": "object",
+      "required": ["mustHave", "niceToHave"],
+      "additionalProperties": false,
+      "properties": {
+        "mustHave": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Requirements classified must-have by the §F cue phrases (required | must have | essential | you will need | minimum | mandatory)."
+        },
+        "niceToHave": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Requirements classified nice-to-have by the §F nice cues (preferred | desirable | bonus | nice to have | advantageous | ideally). Unmarked requirements default here."
+        }
+      }
+    },
+    "keywords": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Free keywords surfaced from the JD (optional)."
+    }
+  }
+}
