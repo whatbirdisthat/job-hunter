@@ -1,0 +1,28 @@
+[package]
+name = "aa-cvimport"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Deterministic PDF/DOCX résumé import → master-CV schema (item #2). Extracts text (pdf-extract; zip+quick-xml) and maps it via a hand-written segmenter into a NEW aa_core::MasterCv for review. No LLM, no network. Depends on aa-core ONLY (one-way crate graph)."
+
+[lib]
+name = "aa_cvimport"
+path = "src/lib.rs"
+
+[dependencies]
+aa-core = { path = "../core" }
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+pdf-extract = "0.10"
+zip = "2"
+quick-xml = "0.40"
+
+[dev-dependencies]
+# Synthesises DOCX fixtures from personas at test time (I4: no committed binary fixtures).
+# NOT on the shipped path.
+docx-rs = "0.4"
+# Builds deliberately-malformed DOCX archives (valid zip, missing/bad document.xml) to
+# exercise the Decode error arms. Same version as the runtime dep.
+zip = "2"

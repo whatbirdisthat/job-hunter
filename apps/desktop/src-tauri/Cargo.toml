@@ -13,6 +13,12 @@ path = "src/lib.rs"
 [dependencies]
 aa-core = { path = "../../../crates/core" }
 aa-jobparse = { path = "../../../crates/jobparse" }
+aa-cvimport = { path = "../../../crates/cvimport" }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
+
+[dev-dependencies]
+# Synthesises DOCX résumé fixtures from personas at test time (I4: no committed
+# binary fixtures) for the L4 résumé-import system test. NOT on the shipped path.
+docx-rs = "0.4"

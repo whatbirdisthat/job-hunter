@@ -441,3 +441,282 @@ own constraints. They are binding spec for the orchestrator.
    before render tests, D3 before ST.
 9. **Out of scope (do NOT build):** PDF/DOCX import, LLM layer, capture extension, tracker, any
    LinkedIn/Seek automation.
+
+---
+
+# Item #2 — PDF/DOCX résumé import → master-CV schema
+
+> APPENDED 2026-06-13 by FOUNDRY builder-lead. Slice 1 is merged; this is a single-item cycle on branch
+> `item-2-resume-import`. The parsing-strategy spike (`doc/idea/applicant-advocate/spike-resume-import.md`)
+> is **COMPLETE** — its library + architecture choices are **FINAL** and binding; this plan does not
+> re-litigate them. **Builder-lead plans; `lifecycle-orchestrator` runs each task's 0–9 loop.**
+> Deterministic; **NO LLM** (that is item #3). Honours invariants I1, I4, I5 (SMU §6, §12.4).
+
+## Tier & budget
+
+**Tier:** PRIMARY (PRIORITY: NOW). **Depends on:** slice 1 (merged) — `crates/core` types + the
+`import_master_cv` validation path + `templates/cv/classic.typ` CLI render + `tools/fake-data/validate.js`.
+**Token budget estimate:** ~22k (basis: heuristic — comparable to slice-1 `crates/jobparse` (~one new
+`core`-only crate, hand-written deterministic parsing, full L1–L5) scaled up ~1.3× for two input formats +
+the Tauri command + a UI option). No IDEA_COST comparable with ≥3 samples yet → `estimation_basis:
+HEURISTIC`. Record actuals to `IDEA_COST.jsonl` at cycle close (KAIZEN).
+
+## Architecture decision — none required (Phase 2.5)
+
+No new ADR. The integration boundary (new crate, new file inputs) was settled by the **completed spike**,
+which fixes the libraries, the one-way crate placement, and the output-validation seam. Phase 2.5 triggers
+are satisfied by an existing decision record (the spike), so no `handler-architect` spawn. No
+IDEA_COST high-variance flag (no history). No catastrophic-regression in flight.
+
+## Stack manifest (delta over slice 1)
+
+- **New runtime deps (cvimport):** `pdf-extract = "0.10"`, `zip` (2.x), `quick-xml = "0.40"`.
+- **New dev-dep (cvimport, tests only):** `docx-rs = "0.4"` — synthesises DOCX fixtures from personas; NOT
+  on the shipped path. No committed binary fixtures (I4).
+- **Reused, not re-authored:** `crates/core` (`MasterCv`/`Person`/`Experience`/`Achievement`,
+  `from_json`/`to_json`), `templates/cv/classic.typ` (persona → PDF at test time), `tools/fake-data/
+  validate.js` (L3 schema check), `fixtures/personas/*.cv.json` (test oracle), `apps/desktop/src-tauri`
+  `import_master_cv` (install-after-review path).
+- **Handlers:** **handler-rust** (cvimport crate + Tauri `import_resume` command), **handler-react**
+  (onboarding import-résumé option). No new handler required — see Roster cross-check below.
+
+## Roster cross-check (Phase 4.5)
+
+- VALUE_HANDLERS named — **handler-rust**, **handler-react** — both registered. No missing handler.
+- **handler-tauri gap (carried, not new):** the Tauri command is again mapped to **handler-rust** per the
+  standing FOUNDER finding F-1 / SI-1 (the `import_resume` command is a thin binding over `cvimport`; no
+  Tauri-specific domain logic). Recorded under Self-Improvement Flags, not improvised.
+- Reviewer roles invoked by the per-task loop (EARS, FEATURE/Gherkin, TEST, IMPLEMENT, STORY reviewers +
+  the REGRESSION/COVERAGE reviewers `lifecycle-orchestrator` runs) are all the same roles slice 1 used and
+  are registered. No phase names a non-existent reviewer.
+
+## Topological sort (Phase 4.5) — no cycle
+
+Build DAG (legal order): `X1 (workspace+crate scaffold)` → `X2 (extract: pdf)` ∥ `X3 (extract: docx)` →
+`X4 (segment+map → MasterCv)` → `X5 (import_resume top-level + ImportError)` → `X6 (Tauri import_resume
+command)` → `X7 (React onboarding option)` ∥ `X8 (CI: cvimport in workspace gate)` → `X9 (STORY)`. No
+`Depends on` back-edge; topological sort completes. **Parallel grouping is defined.**
+
+## Crate module layout & public surface — `crates/cvimport`
+
+```
+crates/cvimport/
+  Cargo.toml          # deps: aa-core (path), pdf-extract, zip, quick-xml
+                      # dev-deps: docx-rs   (+ aa-core test helpers, fixtures path)
+  src/
+    lib.rs            # crate root: re-exports; pub fn import_resume; pub enum ImportError; ResumeKind
+    extract/
+      mod.rs          # pub(crate) fn extract(bytes, kind) -> Result<ExtractedText, ImportError>
+      pdf.rs          # pub(crate) fn extract_pdf(&[u8]) -> Result<ExtractedText, ImportError>  (pdf-extract)
+      docx.rs         # pub(crate) fn extract_docx(&[u8]) -> Result<ExtractedText, ImportError> (zip+quick-xml)
+    segment.rs        # pure fns: split ExtractedText into Segments via cue tokens (header/skills/experience)
+    map.rs            # pure fns: Segments -> MasterCv (person/headline, skill lists, experience+achievements);
+                      #          assigns synthetic ids (imp_exp_N, imp_exp_N_bM)
+    error.rs          # ImportError (thiserror): UnsupportedKind, Extract(String), Empty, Decode(String)
+```
+
+**Public surface (the whole crate's API):**
+
+```rust
+pub enum ResumeKind { Pdf, Docx }                       // parsed from the "pdf"|"docx" string at the boundary
+
+#[derive(Debug, thiserror::Error)]
+pub enum ImportError {
+    #[error("unsupported résumé kind: {0}")]   UnsupportedKind(String),
+    #[error("could not extract text: {0}")]    Extract(String),
+    #[error("résumé produced no recognisable content")] Empty,
+    #[error("could not decode file: {0}")]     Decode(String),
+}
+
+/// Top-level entry point. Deterministic; no LLM; no network. Produces a NEW MasterCv (I1).
+/// Output is guaranteed to deserialize as `MasterCv` (parse-don't-validate); the L3 boundary
+/// test additionally asserts it validates against master-cv.schema.json via validate.js.
+pub fn import_resume(bytes: &[u8], kind: ResumeKind) -> Result<aa_core::MasterCv, ImportError>;
+```
+
+- `ExtractedText` / `Segment` are `pub(crate)` internal types (unit-tested via the module, L1/L2). Only
+  `import_resume`, `ResumeKind`, `ImportError` are the crate's public contract.
+- `map.rs` emits a `MasterCv` with `schema_version = "1.0.0"`, `person` populated from the header block,
+  skill lists from the skills segment, and `experience[]` from experience blocks. Empty/unknown fields are
+  **omitted** (serde `skip_serializing_if`), never invented (I3).
+
+## EARS requirement IDs allocated (R-CVI-* family)
+
+| ID | Requirement (one-line; full EARS authored by the EARS task) |
+|---|---|
+| **R-CVI-1** | WHEN given PDF bytes, the importer SHALL extract the résumé text via `pdf-extract` (flat stream; no assumed newlines). |
+| **R-CVI-2** | WHEN given DOCX bytes, the importer SHALL extract per-paragraph text by walking `word/document.xml` `w:t` runs (`zip` + `quick-xml`). |
+| **R-CVI-3** | WHEN a header block is present, the importer SHALL map it to `person` (name, professionalTitle) and the top-level `headline`. |
+| **R-CVI-4** | WHEN a labelled skills/technologies segment is present, the importer SHALL map its entries into the master-CV skill lists. |
+| **R-CVI-5** | WHEN an experience block (`title @ company · dates`) is present, the importer SHALL map it to one `experience[]` entry and its bullet lines to `achievementsTasks[]`. |
+| **R-CVI-6** | The importer SHALL assign every produced experience/achievement node a deterministic synthetic id (`imp_exp_N`, `imp_exp_N_bM`). |
+| **R-CVI-7** | The importer SHALL emit output that deserializes as `MasterCv` AND validates against `master-cv.schema.json`. |
+| **R-CVI-8** | IF the kind is unsupported OR the bytes are undecodable/garbage OR extraction yields no recognisable content, THEN the importer SHALL return a typed `ImportError` (never panic). |
+| **R-CVI-9** | The importer SHALL produce a NEW master-CV document and SHALL NOT mutate any loaded/installed master CV (I1). |
+| **R-CVI-10** | WHEN `import_resume(bytes, kind)` is invoked at the Tauri boundary, it SHALL return the parsed MasterCv JSON for user review, and installation SHALL reuse the existing `import_master_cv` validation. |
+
+(R-CVI-10 is the command-boundary requirement; R-CVI-1..9 are the crate-level requirements.)
+
+## Work decomposition (tasks → handlers, ordered)
+
+Each task is handed to `lifecycle-orchestrator` to run its 0–9 loop (EARS → Gherkin → failing tests →
+implement → story) with the named handler. Estimates are per-task token budgets.
+
+### X1 — Workspace + crate scaffold  ·  handler-rust  ·  ~1.5k
+Add `crates/cvimport` to `[workspace].members`; author `Cargo.toml` (deps: `aa-core` path, `pdf-extract`,
+`zip`, `quick-xml`; dev-dep `docx-rs`); empty `lib.rs` with the public surface signatures (compiles, `todo!`
+bodies). Add `cvimport` as a dependency of `aa-desktop`. **Covers:** crate graph (one-way, §12.3).
+**Parallel-safe with:** none (gates all).
+
+### X2 — PDF extraction  ·  handler-rust  ·  ~2.5k  ·  R-CVI-1, R-CVI-8(decode)
+`extract/pdf.rs`: `pdf-extract::extract_text` → `ExtractedText`; map extractor failure → `ImportError::Extract`.
+**Parallel-safe with:** X3.
+
+### X3 — DOCX extraction  ·  handler-rust  ·  ~2.5k  ·  R-CVI-2, R-CVI-8(decode)
+`extract/docx.rs`: `zip` open `word/document.xml`; `quick-xml` walk `w:p`→`w:t` (decode via
+`BytesText::decode()` per spike) → per-paragraph `ExtractedText`; bad-zip/missing-part → `ImportError::Decode`.
+**Parallel-safe with:** X2.
+
+### X4 — Segment + map → MasterCv  ·  handler-rust  ·  ~5k  ·  R-CVI-3..7, R-CVI-9, R-CVI-8(empty)
+`segment.rs` (cue-token segmentation; pure fns) + `map.rs` (Segments → `MasterCv`; synthetic ids; omit
+unknown fields). Empty/structureless extraction → `ImportError::Empty`. **The largest, highest-value unit.**
+**Depends on:** X2, X3 (consumes `ExtractedText`). **Parallel-safe with:** none.
+
+### X5 — `import_resume` top-level + ResumeKind + ImportError wiring  ·  handler-rust  ·  ~1.5k  ·  R-CVI-7, R-CVI-8
+`lib.rs`: `import_resume(bytes, kind)` = `extract` → `segment` → `map`; `ResumeKind` parse from `"pdf"|"docx"`
+(unknown → `UnsupportedKind`). **Depends on:** X4.
+
+### X6 — Tauri `import_resume` command  ·  handler-rust  ·  ~2.5k  ·  R-CVI-10
+`apps/desktop/src-tauri/src/lib.rs`: add `import_resume(&self, bytes: &[u8], kind: &str) -> Result<String,
+CommandError>` returning the parsed MasterCv JSON for review (calls `cvimport::import_resume`,
+`MasterCv::to_json`); add a `From<cvimport::ImportError>` for `CommandError`. **Installation reuses the
+existing `import_master_cv(json)`** — do NOT duplicate validation. **Depends on:** X5.
+
+### X7 — React onboarding "import résumé" option  ·  handler-react  ·  ~2.5k  ·  R-CVI-10 (UI seam)
+`apps/desktop/src/commands.ts`: add `importResume(bytes, kind): Promise<string>` to the `Commands`
+interface. `apps/desktop/src/App.tsx`: add an **"Import résumé (PDF/DOCX)"** button in the `import` step
+**alongside** the existing "Import master CV" (JSON) button; on import it calls `importResume`, then routes
+the returned JSON through the existing `importMasterCv` install path before advancing to `paste`. Component
+test (RTL + user-event) for the new option. **Depends on:** X6. **Parallel-safe with:** X8.
+
+### X8 — CI gate extension  ·  handler-rust  ·  ~1k
+Ensure `cvimport` is exercised by the existing `rust-workspace` job (it already runs `cargo test
+--workspace` / `cargo llvm-cov --workspace` / `clippy --workspace` — adding the member is sufficient; verify
+fmt + clippy `-D warnings` + the 99-line floor stay green with the new crate). `ui` job stays
+`continue-on-error`. pii-guard + foundation untouched and green. **Depends on:** X1. **Parallel-safe with:** X7.
+
+### X9 — STORY (L5)  ·  handler-rust  ·  ~3k  ·  R-CVI-1..10 end-to-end
+Persona → render PDF (via `templates/cv/classic.typ` CLI) AND synthesise DOCX (via `docx-rs` dev-dep) →
+`import_resume` → assert recovered fields + schema-valid + perf-delta. **Depends on:** X6 (and X4/X5).
+**Parallel-safe with:** none (final gate).
+
+## Parallel grouping
+
+```
+Round 1:  X1                                  (scaffold — gates all)
+Round 2:  X2  ∥  X3                           (PDF & DOCX extraction; disjoint files)
+Round 3:  X4                                  (segment + map)
+Round 4:  X5                                  (import_resume top-level)
+Round 5:  X6                                  (Tauri command)
+Round 6:  X7  ∥  X8                           (React option ∥ CI gate; disjoint files)
+Round 7:  X9                                  (STORY)
+```
+
+Parallel pairs touch disjoint files (X2=`extract/pdf.rs`, X3=`extract/docx.rs`; X7=`apps/desktop/src/*`,
+X8=`.github/workflows/ci.yml`+`Cargo.toml` member already added in X1) and neither consumes the other's
+output mid-run.
+
+## The five test levels (item #2) — each emits a perf sample
+
+> All five run under `cargo test --workspace` (L1–L4 + the L5 STORY) exactly as slice 1 (`.github/
+> workflows/ci.yml` `rust-workspace` job); L3 reuses `tools/fake-data/validate.js`. Every level records a
+> perf sample; the STORY carries a **perf-delta budget vs a recorded baseline**.
+
+- **L1 — unit (pure fns).** `segment.rs` cue-token segmentation and `map.rs` field mappings + synthetic-id
+  assignment, tested on small in-memory `ExtractedText` literals (header→person; skills-line→skill list;
+  `title @ company · dates` + bullets → experience+achievements; id determinism `imp_exp_0_b1`). Also the
+  `pdf`/`docx` extractor pure helpers on tiny inputs. Perf sample: per-fn wall-time.
+- **L2 — module (cvimport public surface).** `import_resume(bytes, kind)` over crate-internal synthetic
+  inputs: PDF path, DOCX path, and every `ImportError` arm (UnsupportedKind via a bad kind, Decode via a
+  truncated zip, Empty via structureless text, Extract via undecodable PDF bytes). Asserts the `Result`
+  contract — **non-vacuous**: a garbage-bytes case must return `Err`, not a default `MasterCv`. Perf sample:
+  per-call wall-time.
+- **L3 — boundary (output ↔ schema).** Importer output (`MasterCv::to_json`) written to a temp file and run
+  through `tools/fake-data/validate.js`; asserts it validates against `master-cv.schema.json` (R-CVI-7).
+  This is the one source of truth for "valid master CV", reused from slice 1. Perf sample: validate.js
+  round-trip time.
+- **L4 — system (Tauri command).** Drives `Session::import_resume(bytes, "pdf"|"docx")` (the actual command
+  layer) → returns review JSON → routes through `import_master_cv` to install; asserts the installed master
+  CV is present and unmutated on a second import (I1, R-CVI-9, R-CVI-10). Bad-kind/garbage → typed
+  `CommandError`. Perf sample: command wall-time.
+- **L5 — STORY (persona round-trip).** For persona-001: (a) render to PDF via `typst compile
+  templates/cv/classic.typ --input data=<persona> --root .` at test time; (b) synthesise a DOCX from the
+  same persona via `docx-rs` (dev-dep). Run each through `import_resume`; assert **recovered key fields**
+  (person name = "Devin Voss", professionalTitle, ≥1 skill, ≥1 experience `jobTitle`/`businessName`, ≥1
+  achievement description) AND that the output is **schema-valid** (L3 check inline). **No committed binary
+  fixture** — both files are generated in the test (I4). **Perf-delta budget:** record a baseline
+  (extract+segment+map+validate wall-time) on first green run into `doc/COVERAGE.md`-adjacent perf log; the
+  STORY fails if a run exceeds baseline by the agreed delta (mirror slice-1 I6 posture; the import path is
+  well under the < 60 s journey budget). DOCX recovery is the higher-fidelity assertion (more fields exact);
+  PDF recovery tolerates the spike's line-join (R3b) — assert presence/containment, not byte-equality.
+
+**Coverage:** 100%-of-reachable floor, `cargo llvm-cov --workspace`. Any defensive/infallible arm that
+cannot be hit on valid input (e.g. an infallible `to_json` serialize arm mirroring P-COV-1) must carry a
+documented pragma — **extend `doc/COVERAGE.md` with a `P-COV-cvimport-*` entry** stating the reason. Aim:
+no new pragmas beyond the P-COV-1-class serialize arm; all `ImportError` arms ARE reachable and MUST be
+exercised (X2/X3/X4 error tests above).
+
+## VALUE_HANDLER_POOL required
+
+- **handler-rust** — X1, X2, X3, X4, X5, X6, X8, X9 (crate + extraction + segment/map + top-level + Tauri
+  command + CI + STORY).
+- **handler-react** — X7 (onboarding import-résumé option + RTL component test).
+
+## DISCUSS items (genuine spec gaps)
+
+**None that block the build.** The spike fixed every architectural and library choice; the schema, the
+install path, and the test oracle all exist. Two minor implementation calls are **delegated to the
+executing task** (not builder-lead DISCUSS items, recorded here for traceability):
+
+- **(delegated to X6/X7) Byte transport across the Tauri boundary.** `import_resume` takes `bytes: &[u8]`.
+  The JS↔Rust command will pass the file as a number array / base64 — the exact encoding is a handler-rust
+  + handler-react implementation detail, decided when X6/X7 run; it does not change the crate's public
+  surface. If a real architectural question surfaces there (it should not), the task escalates.
+- **(delegated to X4) Cue-token vocabulary.** The exact heuristic cue set for section detection
+  (e.g. "Skills"/"Technologies"/"Experience"/"Employment") is the segmenter's internal detail, proven by
+  the L1/L5 tests against the persona's rendered layout. Bounded by R3a (synthetic-persona acceptance bar).
+
+## Self-improvement flags (KAIZEN)
+
+- **SI-1 (carried):** no dedicated `handler-tauri` in the roster — `import_resume` command again mapped to
+  handler-rust (thin binding). If the command layer grows native logic in a later slice, propose
+  `handler-tauri`. (See FOUNDER finding F-1; SMU §8.)
+- **SI-item2-perf:** item #2 introduces an import-path perf baseline (X9). At cycle close, record cvimport
+  actuals to `IDEA_COST.jsonl` so item #3 (LLM layer, which reuses this import path) has ≥1 comparable for
+  estimation.
+- **SI-item2-pdf-fidelity:** if the L5 PDF round-trip needs many containment-only (not exact) assertions
+  due to `pdf-extract` line-joins (R3b), that is signal the deterministic PDF path is at its ceiling — the
+  documented handoff point to item #3's evidence-bounded LLM layer. Flag, do not over-engineer heuristics.
+
+## Resumption instructions (cold-start — no conversation history needed)
+
+1. **Branch:** `item-2-resume-import`. **Read first (binding):** `doc/idea/applicant-advocate/
+   spike-resume-import.md` (library + architecture choices are FINAL), `SUBJECT_MATTER_UNDERSTANDING.md`
+   §6 (invariants), §12 (this item), and this Item #2 section.
+2. **Build order (topological, no cycle):** X1 → (X2 ∥ X3) → X4 → X5 → X6 → (X7 ∥ X8) → X9. See
+   Work Decomposition + Parallel Grouping.
+3. **Hand each task to `lifecycle-orchestrator`** with its named handler; it runs the 0–9 loop. Builder-lead
+   does not run the loop.
+4. **Crate rule (non-negotiable):** `crates/cvimport` depends on `crates/core` ONLY — never jobparse,
+   aa-desktop, or render. Add it to `[workspace].members`; `aa-desktop` depends on `cvimport`.
+5. **PII firewall (I4):** NO committed binary fixtures — generate PDF (via `templates/cv/classic.typ`) and
+   DOCX (via `docx-rs` dev-dep) from personas at test time. pii-guard MUST stay green.
+6. **Immutability (I1, R-CVI-9):** import yields a NEW master-CV document for review; install reuses
+   `import_master_cv` validation; never mutate a loaded master CV.
+7. **Test contract:** all five levels (L1–L5) under `cargo test --workspace`; L3 reuses `tools/fake-data/
+   validate.js`; fmt + clippy `-D warnings`; 100%-of-reachable coverage (document any pragma in
+   `doc/COVERAGE.md` as `P-COV-cvimport-*`); every level emits a perf sample; STORY carries a perf-delta
+   budget vs a recorded baseline.
+8. **CI:** keep `foundation` + `pii-guard` green; `cvimport` rides the existing `rust-workspace` gate once
+   it is a workspace member; `ui` stays `continue-on-error`.
+9. **EARS to author:** R-CVI-1 .. R-CVI-10 (table above).

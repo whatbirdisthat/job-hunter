@@ -6,6 +6,10 @@
 //! end-to-end wall-clock, fails if it exceeds the baseline, and flags a regression if
 //! a run drifts materially slower than the prior recorded story run.
 
+// Shared perf-gate logic (Finding 3) — single source, reused across both L5 stories.
+#[path = "../../../../crates/cvimport/tests/perf_gate.rs"]
+mod perf_gate;
+
 use aa_core::is_valid_pdf;
 use aa_desktop::Session;
 use std::time::Instant;
@@ -18,8 +22,9 @@ fn root() -> std::path::PathBuf {
 }
 
 const BUDGET_SECS: f64 = 60.0;
-/// Perf-delta tolerance: a run more than this factor slower than the prior recorded
-/// story run is flagged (not a hard fail unless it also breaches the absolute budget).
+/// Perf-delta tolerance vs the TRACKED story baseline (`doc/perf/...`). Independent of the
+/// absolute budget (Finding 3): a >3× regression fails the delta arm even though it is far
+/// under the 60 s budget.
 const DELTA_FACTOR: f64 = 3.0;
 
 #[test]
@@ -70,22 +75,25 @@ fn story_import_to_export_perf_delta_gated() {
 
     let elapsed = start.elapsed().as_secs_f64();
 
-    // ── perf-delta gate (I6) ────────────────────────────────────────────────────
-    // absolute budget
-    assert!(
-        elapsed < BUDGET_SECS,
-        "STORY exceeded the {BUDGET_SECS}s offline budget: {elapsed:.3}s"
+    // ── perf-delta gate (I6, Finding 3) ─────────────────────────────────────────
+    // TWO independent obligations, read from a TRACKED baseline (never self-overwritten):
+    //   (a) absolute I6 budget   — `elapsed < BUDGET_SECS`
+    //   (b) regression delta     — `elapsed <= baseline * DELTA_FACTOR` (can actually fire)
+    // Shares the `perf_gate` helper with the cvimport L5; non-vacuity proven in perf_gate_l1.
+    let baseline_path = root().join("doc/perf/desktop-story-baseline.txt");
+    let baseline = perf_gate::read_baseline(&baseline_path);
+    perf_gate::enforce_gate(
+        "import-to-export STORY",
+        elapsed,
+        baseline,
+        BUDGET_SECS,
+        DELTA_FACTOR,
     );
-    // delta vs the prior recorded run (if any)
-    let perf_path = root().join("target/story-perf-baseline.txt");
-    if let Ok(prev) = std::fs::read_to_string(&perf_path) {
-        if let Ok(prev_secs) = prev.trim().parse::<f64>() {
-            assert!(
-                elapsed <= prev_secs * DELTA_FACTOR || elapsed < BUDGET_SECS,
-                "STORY drifted >{DELTA_FACTOR}x slower than prior run ({prev_secs:.3}s -> {elapsed:.3}s)"
-            );
-        }
-    }
-    let _ = std::fs::write(&perf_path, format!("{elapsed:.6}"));
-    eprintln!("[L5 STORY perf] end-to-end: {elapsed:.3}s (budget {BUDGET_SECS}s)");
+    // SAMPLE emission (kept) — observability, NOT a self-overwriting baseline write.
+    eprintln!(
+        "[L5 STORY perf] end-to-end: {elapsed:.3}s (budget {BUDGET_SECS}s, baseline {})",
+        baseline
+            .map(|b| format!("{b:.3}s"))
+            .unwrap_or_else(|| "none".to_string())
+    );
 }
