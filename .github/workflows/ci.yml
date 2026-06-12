@@ -65,6 +65,12 @@ jobs:
             --input data=fixtures/personas/persona-001.cv.json --root .
           test -s /tmp/sample-cv.pdf && echo "OK: PDF rendered."
 
+      - name: Compact CV renders to PDF (smoke test)
+        run: |
+          typst compile templates/cv/compact.typ /tmp/sample-compact.pdf \
+            --input data=fixtures/personas/persona-001.cv.json --root .
+          test -s /tmp/sample-compact.pdf && echo "OK: compact PDF rendered."
+
       - name: Upload sample CV PDF
         uses: actions/upload-artifact@v4
         with:

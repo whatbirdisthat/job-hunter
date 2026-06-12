@@ -49,3 +49,31 @@ achievement bullets (monospace, or italic when emphasised) → tag row (faint, s
   document reads as "the DW_CV look" regardless of font substitution.
 - Additional templates (e.g. `modern.typ`, `compact.typ`) can be added alongside `classic.typ`; the
   data contract is always `doc/schemas/master-cv.schema.json`.
+
+## `compact.typ` — the single-column, ATS-friendly template (item #6)
+
+`templates/cv/compact.typ` is a deliberate ATS-readability contrast to `classic.typ`. It shares the
+same `sys.inputs.data` JSON contract, the same built-in placeholder block, and the same bundled
+Liberation font stack — only the **layout** differs.
+
+- **Single-column linear flow** (no sidebar grid): full-width header → **Summary** → **Skills** →
+  **Experience**, top to bottom. This is what the ATS column-reliance check (`R-ATS-3`,
+  `CvTemplate::is_multi_column`) keys off — Classic is multi-column (a smell), Compact is not.
+- **Skills as inline grouped lists**, `Label: A · B · C` (e.g. `Languages: Python · Go · TypeScript`),
+  with **NO rating dots/circles**. The classic five-dot proficiency rating renders as small filled
+  circles, which read as images (not text) to an ATS; Compact drops them so every skill is
+  extractable plain text.
+- **Standard section headings only** — `Summary`, `Skills`, `Experience` (plus the Classic skill
+  sub-labels `Languages` / `Tools & Technologies` / `Platforms & Services`). The heading vocabulary
+  is a subset of the ATS standard allow-list (`R-ATS-5`).
+- **Achievements as plain `·` bullets** (not monospace micro-text), italic when `emphasise` — again
+  prioritising text extractability over the DW_CV micro-typography.
+- **Page-break discipline kept**: each job entry stays `block(breakable: false)`.
+- **CLI-renderable** (used by the CI `foundation` smoke, `R-TPL-4`):
+  ```
+  typst compile templates/cv/compact.typ out.pdf \
+    --input data=fixtures/personas/persona-001.cv.json --root .
+  ```
+
+`Modern` is intentionally **deferred** this cycle — the `CvTemplate` enum ships exactly
+`{Classic, Compact}` with no dead variant.

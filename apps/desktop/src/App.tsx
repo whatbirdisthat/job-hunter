@@ -6,10 +6,13 @@
 import { useRef, useState } from "react";
 import { ReviewPanel } from "./ReviewPanel";
 import { TrackerBoard } from "./TrackerBoard";
+import { AtsPanel } from "./AtsPanel";
+import { KeywordPanel } from "./KeywordPanel";
 import type {
   Bullet,
   CoverageReport,
   Commands,
+  CvTemplate,
   TrackedApplication,
   TrackerCommands,
   TrackerDate,
@@ -39,6 +42,9 @@ export function App({ commands, tracker }: AppProps) {
   // toggle in the review step. After export, `aiUsed` drives the "AI was used" badge.
   const [advocateEnabled, setAdvocateEnabled] = useState(false);
   const [aiUsed, setAiUsed] = useState(false);
+  // Item #6 (R-TPL-6): the CV template selected in the export flow. Default Classic
+  // (backward-compatible). Threaded to export + the ATS/keyword panels.
+  const [template, setTemplate] = useState<CvTemplate>("classic");
   const fileRef = useRef<HTMLInputElement>(null);
 
   const onImported = async (json: string) => {
@@ -75,7 +81,7 @@ export function App({ commands, tracker }: AppProps) {
   };
 
   const onExport = async () => {
-    const result = await commands.exportApplication();
+    const result = await commands.exportApplication(template);
     setAiUsed(result.aiUsed);
     setStep("done");
   };
@@ -144,6 +150,19 @@ export function App({ commands, tracker }: AppProps) {
             />
             Use Applicant Advocate (AI) — evidence-bounded, off by default
           </label>
+          <label>
+            CV template:{" "}
+            <select
+              aria-label="CV template"
+              value={template}
+              onChange={(e) => setTemplate(e.target.value as CvTemplate)}
+            >
+              <option value="classic">Classic (two-column)</option>
+              <option value="compact">Compact (single-column, ATS-friendly)</option>
+            </select>
+          </label>
+          <AtsPanel template={template} commands={commands} />
+          <KeywordPanel commands={commands} />
           <ReviewPanel bullets={bullets} commands={commands} onExport={onExport} />
         </>
       )}

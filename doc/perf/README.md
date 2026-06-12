@@ -13,6 +13,7 @@ gitignored `target/` file, which self-ratcheted and made the delta arm vacuous).
 | `capture-clip-story-baseline.txt` | `packages/capture-core/test/story.test.mjs` (item #4 clip→json journey, `node --test`) |
 | `capture-email-story-baseline.txt` | `packages/capture-core/test/story.test.mjs` (item #4 email→jobs journey, `node --test`) |
 | `desktop-tracker-story-baseline.txt` | `apps/desktop/src-tauri/tests/tracker_story_l5.rs` (item #5 tracker journey: track → advance → call-sheet) |
+| `desktop-templates-ats-story-baseline.txt` | `apps/desktop/src-tauri/tests/templates_ats_story_l5.rs` (item #6 journey: pick Compact → export → ats_report → keyword_coverage) |
 
 Each file holds a single number: the baseline wall-clock in seconds. The gate enforces TWO
 independent obligations (see `crates/cvimport/tests/perf_gate.rs`):
@@ -40,6 +41,14 @@ baseline a few × above the measured time so the delta arm has just enough headr
 CI variance while still tripping on a genuine regression — NOT orders of magnitude above it (a
 grossly loose baseline makes the 3×-delta arm vacuous, leaving only the 60 s budget as a real
 check).
+
+The item-#6 templates-ATS journey runs ONE typst CV render (the dominant cost) plus two pure
+in-memory reports (`ats_report`, `keyword_coverage`), so its **observed steady-state is ~0.084 s**
+(measured 3× via `cargo test -p aa-desktop --test templates_ats_story_l5 -- --nocapture`: 0.086 /
+0.083 / 0.084 s). Its baseline is **`0.300000`** (≈3.5× the observed steady-state, per the rule
+above — NOT copied from another story). At `0.300000` the 3×-delta arm fires at 0.900 s, so a
+real multi-hundred-ms regression FAILS while the 0.084 s steady-state passes with headroom; the
+60 s absolute budget remains the hard ceiling.
 
 The item-#5 tracker journey is pure in-memory cores + a tiny atomic JSON file write (no typst
 render), so its **observed steady-state is ~0.001 s** (measured 3× via

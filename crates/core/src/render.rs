@@ -18,7 +18,7 @@
 
 use crate::tailor::TailoredView;
 use crate::types::CoreError;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 // Bundled fonts ship with the crate (no system font dependency, §H). They are used
 // by the embedded backend and are part of the crate's render contract regardless of
@@ -50,9 +50,66 @@ pub const BUNDLED_FONTS: &[(&str, &[u8])] = &[
     ),
 ];
 
-/// Repo-root-relative template paths (§H: classic.typ stays CLI-renderable).
-const CV_TEMPLATE_REL: &str = "templates/cv/classic.typ";
+/// Repo-root-relative template path for the cover letter (§G: CV-only template
+/// selection per DISCUSS-A3 — the letter stays classic). The CV template path now
+/// comes from [`CvTemplate::template_rel`] (item #6).
 const LETTER_TEMPLATE_REL: &str = "templates/letter/classic-letter.typ";
+
+/// The CV template a render uses (item #6, capability A). `Modern` is DEFERRED — the
+/// variant is OMITTED entirely so there is no dead/unreachable branch to pragma over
+/// (DISCUSS-A2 RESOLVED). Each variant maps to a repo-relative `.typ` file consuming
+/// the SAME `sys.inputs.data` JSON contract (R-TPL-3). `Default` = `Classic`, so a
+/// no-arg render is the pre-#6 behaviour byte-for-byte (R-TPL-5).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum CvTemplate {
+    #[default]
+    Classic,
+    Compact,
+}
+
+impl CvTemplate {
+    /// Repo-root-relative `.typ` path for this template (R-TPL-1/4).
+    pub fn template_rel(self) -> &'static str {
+        match self {
+            CvTemplate::Classic => "templates/cv/classic.typ",
+            CvTemplate::Compact => "templates/cv/compact.typ",
+        }
+    }
+
+    /// Parse a boundary string into a template (R-TPL-7). Case-insensitive on the
+    /// canonical lower-case name; an unrecognised string is a typed `CoreError::Render`
+    /// (never a panic, never a silent default).
+    pub fn parse(s: &str) -> Result<Self, CoreError> {
+        match s.trim().to_lowercase().as_str() {
+            "classic" => Ok(CvTemplate::Classic),
+            "compact" => Ok(CvTemplate::Compact),
+            other => Err(CoreError::Render(format!("unknown CV template: {other}"))),
+        }
+    }
+
+    /// Whether this template lays the CV out in multiple columns. Classic uses a
+    /// two-column skills-sidebar grid (an ATS column-reliance smell); Compact is a
+    /// single-column linear flow. Feeds the ATS column-reliance check (R-ATS-3).
+    pub fn is_multi_column(self) -> bool {
+        matches!(self, CvTemplate::Classic)
+    }
+
+    /// The fixed section-heading vocabulary this template emits. Headings are
+    /// template-controlled (not user data), so the ATS non-standard-heading check
+    /// (R-ATS-5, DISCUSS-ATS-HEAD option a) asserts this set is a subset of a standard
+    /// allow-list — a guard against a future template introducing an odd heading.
+    pub fn heading_vocabulary(self) -> &'static [&'static str] {
+        // Both shipped templates draw from the same standard vocabulary.
+        &[
+            "Experience",
+            "Languages",
+            "Skills",
+            "Tools & Technologies",
+            "Platforms & Services",
+            "Summary",
+        ]
+    }
+}
 
 /// The cover-letter model (§G), serialized for the letter template. Strength
 /// paragraphs each carry the evidence id of the achievement they wrap.
@@ -77,6 +134,19 @@ pub struct StrengthParagraph {
 /// The render seam (§H). One trait, two backends.
 pub trait Renderer {
     fn render_cv(&self, view: &TailoredView) -> Result<Vec<u8>, CoreError>;
+    /// Render the tailored view through a SELECTED template (item #6, R-TPL-1). ADDITIVE:
+    /// the default delegates to [`Renderer::render_cv`] (Classic) so every existing impl
+    /// and caller compiles untouched and behaves identically. `CliRenderer` overrides this
+    /// to compile the variant's `.typ`; `EmbeddedRenderer` keeps the Classic fallback
+    /// (parallel-template support DEFERRED — see the embedded module note).
+    fn render_cv_with_template(
+        &self,
+        view: &TailoredView,
+        template: CvTemplate,
+    ) -> Result<Vec<u8>, CoreError> {
+        let _ = template;
+        self.render_cv(view)
+    }
     fn render_cover_letter(&self, letter: &CoverLetter) -> Result<Vec<u8>, CoreError>;
 }
 
@@ -157,8 +227,16 @@ impl CliRenderer {
 
 impl Renderer for CliRenderer {
     fn render_cv(&self, view: &TailoredView) -> Result<Vec<u8>, CoreError> {
+        // Identical bytes-of-behaviour to pre-#6: Classic via the additive seam.
+        self.render_cv_with_template(view, CvTemplate::Classic)
+    }
+    fn render_cv_with_template(
+        &self,
+        view: &TailoredView,
+        template: CvTemplate,
+    ) -> Result<Vec<u8>, CoreError> {
         let json = view.cv.to_json()?;
-        self.compile(CV_TEMPLATE_REL, &json)
+        self.compile(template.template_rel(), &json)
     }
     fn render_cover_letter(&self, letter: &CoverLetter) -> Result<Vec<u8>, CoreError> {
         let json = serde_json::to_string(letter).map_err(|e| CoreError::Render(e.to_string()))?;
@@ -209,6 +287,12 @@ mod embedded {
             .map_err(|e| CoreError::Render(format!("pdf export: {e:?}")))
     }
 
+    // DEFERRAL (item #6, DISCUSS-RENDER): the embedded backend `include_str!`s only
+    // `classic.typ` at compile time. Parallel-template support (a `compact.typ`
+    // include + variant dispatch) is DEFERRED here — `EmbeddedRenderer` inherits the
+    // trait-default `render_cv_with_template`, which falls back to Classic. The CLI
+    // path is the template contract for #6 (matches how items 1–5 shipped). The
+    // `embedded-typst` feature does not run in CI (see ci.yml / doc/COVERAGE.md).
     impl Renderer for EmbeddedRenderer {
         fn render_cv(&self, view: &TailoredView) -> Result<Vec<u8>, CoreError> {
             let json = view.cv.to_json()?;
@@ -247,6 +331,14 @@ pub fn default_renderer() -> impl Renderer {
 /// Convenience free functions over the default renderer (used by the engine + tests).
 pub fn render_cv(view: &TailoredView) -> Result<Vec<u8>, CoreError> {
     default_renderer().render_cv(view)
+}
+/// Render the tailored view through a SELECTED template (item #6, R-TPL-1). The no-arg
+/// [`render_cv`] is exactly `render_cv_with_template(view, CvTemplate::Classic)`.
+pub fn render_cv_with_template(
+    view: &TailoredView,
+    template: CvTemplate,
+) -> Result<Vec<u8>, CoreError> {
+    default_renderer().render_cv_with_template(view, template)
 }
 pub fn render_cover_letter(letter: &CoverLetter) -> Result<Vec<u8>, CoreError> {
     default_renderer().render_cover_letter(letter)
@@ -401,5 +493,124 @@ mod tests {
     fn repo_root_returns_existing_dir() {
         // covers repo_root success path (the canonicalize-Ok arm)
         assert!(repo_root().join("templates/cv/classic.typ").exists());
+    }
+
+    // ── item #6 — CvTemplate (R-TPL-*) ───────────────────────────────────────────
+    #[test]
+    fn cv_template_template_rel_maps_each_variant() {
+        assert_eq!(
+            CvTemplate::Classic.template_rel(),
+            "templates/cv/classic.typ"
+        );
+        assert_eq!(
+            CvTemplate::Compact.template_rel(),
+            "templates/cv/compact.typ"
+        );
+    }
+
+    #[test]
+    fn cv_template_parse_accepts_known_case_insensitive() {
+        assert_eq!(CvTemplate::parse("classic").unwrap(), CvTemplate::Classic);
+        assert_eq!(CvTemplate::parse("Compact").unwrap(), CvTemplate::Compact);
+        assert_eq!(
+            CvTemplate::parse("  COMPACT ").unwrap(),
+            CvTemplate::Compact
+        );
+    }
+
+    #[test]
+    fn cv_template_parse_rejects_unknown_with_typed_error() {
+        // R-TPL-7: unrecognised string → typed CoreError::Render, never a panic/default.
+        let err = CvTemplate::parse("modern").expect_err("unknown template errors");
+        assert!(matches!(err, CoreError::Render(_)));
+        assert!(err.to_string().contains("unknown CV template: modern"));
+    }
+
+    #[test]
+    fn cv_template_default_is_classic() {
+        assert_eq!(CvTemplate::default(), CvTemplate::Classic);
+    }
+
+    #[test]
+    fn cv_template_is_multi_column() {
+        // R-ATS-3 feed: Classic is multi-column (sidebar grid), Compact is single-column.
+        assert!(CvTemplate::Classic.is_multi_column());
+        assert!(!CvTemplate::Compact.is_multi_column());
+    }
+
+    #[test]
+    fn cv_template_heading_vocabulary_non_empty_for_each() {
+        assert!(!CvTemplate::Classic.heading_vocabulary().is_empty());
+        assert!(!CvTemplate::Compact.heading_vocabulary().is_empty());
+    }
+
+    #[test]
+    fn cv_template_serde_round_trips() {
+        // CvTemplate is Serialize/Deserialize (boundary marshalling).
+        let j = serde_json::to_string(&CvTemplate::Compact).unwrap();
+        let back: CvTemplate = serde_json::from_str(&j).unwrap();
+        assert_eq!(back, CvTemplate::Compact);
+    }
+
+    #[test]
+    fn render_cv_with_template_compact_is_valid_pdf() {
+        // L2/R-TPL-1: rendering through Compact yields a non-empty, valid PDF.
+        let view = tailor(&master(), &job(), 3);
+        let pdf = render_cv_with_template(&view, CvTemplate::Compact).expect("compact renders");
+        assert!(!pdf.is_empty());
+        assert!(
+            is_valid_pdf(&pdf),
+            "compact must be a structurally valid PDF"
+        );
+    }
+
+    #[test]
+    fn render_cv_equals_classic_default() {
+        // R-TPL-5: the no-arg render is exactly Classic (same length → same template).
+        let view = tailor(&master(), &job(), 3);
+        let default_len = render_cv(&view).unwrap().len();
+        let classic_len = render_cv_with_template(&view, CvTemplate::Classic)
+            .unwrap()
+            .len();
+        assert_eq!(default_len, classic_len);
+    }
+
+    /// A `Renderer` that does NOT override `render_cv_with_template`, so the trait's
+    /// ADDITIVE default (delegate to `render_cv`, ignoring the template) is exercised —
+    /// this is the backward-compat guarantee for any existing impl (R-TPL-1 default arm).
+    struct DefaultSeamRenderer;
+    impl Renderer for DefaultSeamRenderer {
+        fn render_cv(&self, _view: &TailoredView) -> Result<Vec<u8>, CoreError> {
+            Ok(b"%PDF-default".to_vec())
+        }
+        fn render_cover_letter(&self, _letter: &CoverLetter) -> Result<Vec<u8>, CoreError> {
+            Ok(vec![])
+        }
+    }
+
+    #[test]
+    fn trait_default_render_cv_with_template_delegates_to_render_cv() {
+        let view = tailor(&master(), &job(), 3);
+        let r = DefaultSeamRenderer;
+        // Both templates route through the default → identical to `render_cv` (template ignored).
+        let classic = r
+            .render_cv_with_template(&view, CvTemplate::Classic)
+            .unwrap();
+        let compact = r
+            .render_cv_with_template(&view, CvTemplate::Compact)
+            .unwrap();
+        assert_eq!(classic, b"%PDF-default");
+        assert_eq!(compact, b"%PDF-default");
+        // also exercise the helper's letter stub so the fake impl is fully covered
+        assert!(r
+            .render_cover_letter(&CoverLetter {
+                greeting: String::new(),
+                why_role: String::new(),
+                strengths: vec![],
+                closing: String::new(),
+                candidate_name: String::new(),
+            })
+            .unwrap()
+            .is_empty());
     }
 }

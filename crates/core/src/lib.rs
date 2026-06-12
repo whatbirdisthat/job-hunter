@@ -13,8 +13,10 @@
 //!   - [`render::render_cv`] / [`render::render_cover_letter`] — §H/§G embedded render
 //!   - [`assemble_application`] — the L4 system path: job + cv → two PDFs (export-guarded)
 
+pub mod ats;
 pub mod coverage;
 pub mod job;
+pub mod keyword_coverage;
 pub mod ledger;
 pub mod matching;
 pub mod normalize;
@@ -22,11 +24,14 @@ pub mod render;
 pub mod tailor;
 pub mod types;
 
+pub use ats::{ats_report, AtsCheck, AtsCheckId, AtsReport, AtsStatus};
 pub use coverage::{coverage_report, CoverageReport, RequirementCoverage};
 pub use job::{NormalizedJob, Requirements};
+pub use keyword_coverage::{keyword_coverage, KeywordClass, KeywordCoverage, KeywordHit};
 pub use ledger::{cv_ledger, guard, LedgerNode};
 pub use render::{
-    is_valid_pdf, render_cover_letter, render_cv, CoverLetter, Renderer, StrengthParagraph,
+    is_valid_pdf, render_cover_letter, render_cv, render_cv_with_template, CoverLetter, CvTemplate,
+    Renderer, StrengthParagraph,
 };
 pub use tailor::{pick_summary, requirement_for, tailor, TailoredView, DEFAULT_TOP_N};
 pub use types::{Achievement, CoreError, Experience, MasterCv, Person, Skill};
