@@ -22,9 +22,11 @@
 mod error;
 mod extract;
 mod map;
+mod mine_json;
 mod segment;
 
 pub use error::ImportError;
+pub use mine_json::{completeness, ignored_role_arrays, import_cv_json, CompletenessReport};
 
 /// The résumé file format. Parsed from the `"pdf"`/`"docx"` string at the Tauri
 /// boundary via [`ResumeKind::parse`].

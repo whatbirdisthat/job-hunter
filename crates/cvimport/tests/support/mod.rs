@@ -22,6 +22,19 @@ pub fn persona_json(name: &str) -> serde_json::Value {
     serde_json::from_str(&s).unwrap()
 }
 
+/// Load an arbitrary-shaped INPUT fixture for the adaptive JSON miner (item 8a) as a
+/// parsed `serde_json::Value`. These live under `crates/cvimport/tests/fixtures/json/`
+/// — synthetic, PII-free (emails only `@example.*` / `@job-hunter.example`), and are
+/// miner INPUT (not master-CV-shaped oracles like `persona_json`).
+pub fn load_json(name: &str) -> serde_json::Value {
+    let p = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/json")
+        .join(name);
+    let s = std::fs::read_to_string(&p)
+        .unwrap_or_else(|e| panic!("read miner fixture {}: {e}", p.display()));
+    serde_json::from_str(&s).unwrap_or_else(|e| panic!("parse miner fixture {name}: {e}"))
+}
+
 /// Render a persona to a PDF byte vector via the `typst` CLI (the same path the
 /// `foundation` CI smoke uses). Deterministic; offline.
 pub fn render_persona_pdf(name: &str) -> Vec<u8> {

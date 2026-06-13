@@ -1,0 +1,35 @@
+{
+  "basics": {
+    "name": "Rowan Adler",
+    "label": "Staff Software Engineer",
+    "summary": "Distributed systems and developer tooling.",
+    "email": "rowan.adler@job-hunter.example",
+    "phone": "+1 555 0142",
+    "location": "Berlin, DE"
+  },
+  "work": [
+    {
+      "position": "Staff Software Engineer",
+      "name": "Lindenbaum GmbH",
+      "startDate": "2020-04",
+      "endDate": "2024-09",
+      "highlights": [
+        "Designed the event-sourcing core",
+        "Reduced p99 latency by 60%"
+      ]
+    },
+    {
+      "position": "Software Engineer",
+      "name": "Spreewald AG",
+      "startDate": "2017-01",
+      "endDate": "2020-03",
+      "highlights": [
+        "Shipped the first public API"
+      ]
+    }
+  ],
+  "skills": [
+    { "name": "TypeScript", "level": 5 },
+    { "name": "Kafka", "level": 4 }
+  ]
+}

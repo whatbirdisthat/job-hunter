@@ -720,3 +720,374 @@ executing task** (not builder-lead DISCUSS items, recorded here for traceability
 8. **CI:** keep `foundation` + `pii-guard` green; `cvimport` rides the existing `rust-workspace` gate once
    it is a workspace member; `ui` stays `continue-on-error`.
 9. **EARS to author:** R-CVI-1 .. R-CVI-10 (table above).
+
+---
+
+## Item 8a — Adaptive JSON miner + completeness (engine)
+
+> Scope: **ROADMAP item 8a ONLY** — the PURE engine. Make the Master CV schema INTERNAL-ONLY by
+> mining the fields the app needs out of ARBITRARY CV JSON. Item **8b** (the CLI flow) is a separate
+> item and is **NOT** planned here. Branch: `item-8a-json-miner`. Authored by FOUNDRY builder-lead
+> against the verified code in `crates/cvimport/{lib,map,segment,error}.rs` + `crates/core/src/types.rs`.
+> Deterministic; NO LLM; NO network. Master CV immutable — build a NEW `MasterCv` (I1).
+
+### 0. Verified architecture constraint (do NOT relitigate)
+
+Confirmed by reading the code:
+
+- **Build `MasterCv` DIRECTLY.** Do **not** route JSON through cvimport's text `Segments`
+  (`segment.rs`) or `map::to_master_cv` (`map.rs`). `Segments` has no slots for
+  email/phone/linkedin/github/website/summary/professionalDescription, and `to_master_cv`
+  **hardcodes `IMPORTED_PROFICIENCY = 3`** for every skill. Both are `pub(crate)`. Routing arbitrary
+  CV JSON through them would silently DROP the entire contact block and every real proficiency — fatal
+  for the real DW_CV file. The miner therefore constructs `aa_core::{MasterCv, Person, Skill,
+  Experience, Achievement}` itself.
+- **Reuse ONLY two conventions from `map.rs`:**
+  1. id synthesis — experience `imp_exp_N` (N = 0-based source index), achievement `imp_exp_N_bM`
+     (M = 0-based bullet index). Identical format string; the miner re-implements it locally (the
+     map.rs helper is `pub(crate)` and not on the miner's import path, so we copy the *convention*,
+     not the symbol).
+  2. honesty default — `proficiency = 3` ONLY when the source carries no rating; never invent text,
+     never inflate a present rating. Mirror map.rs's `IMPORTED_PROFICIENCY` with a local
+     `const DEFAULT_PROFICIENCY: u8 = 3;` carrying the same honest-neutral comment.
+- **L3 validator surface** (`tools/fake-data/validate.js`, reused unchanged): `person` is
+  `additionalProperties:false` over exactly `{name, professionalTitle, professionalDescription,
+  location, email, phone, linkedin, github, website, image}`; every skill needs `proficiency` ∈ 1..5;
+  every experience needs non-empty `id/jobTitle/businessName/startDate`; every achievement needs
+  non-empty `id/description`. The miner's output MUST satisfy all of these for any input.
+
+### 1. Public API shapes (the new crate surface)
+
+**One new public entry point** added to `crates/cvimport/src/lib.rs` (`pub use mine_json::import_cv_json;`
++ `mod mine_json;`). `import_resume` is untouched.
+
+```rust
+/// Mine an arbitrary CV JSON value into a NEW aa_core::MasterCv (I1). Deterministic; no LLM,
+/// no network. The Master-CV schema is INTERNAL — callers pass whatever JSON shape they have;
+/// the miner maps known synonyms (case-insensitive keys) onto the master-CV fields the app needs,
+/// builds the struct DIRECTLY (never via the text Segments/map path), assigns synthetic ids
+/// (imp_exp_N / imp_exp_N_bM), and applies honesty defaults (proficiency 3 only when absent).
+/// Output is guaranteed to validate against doc/schemas/master-cv.schema.json.
+///
+/// Errors: ImportError::Empty when the value carries no recognisable CV content at all
+/// (no person name AND no experience AND no skills).
+pub fn import_cv_json(v: &serde_json::Value) -> Result<aa_core::MasterCv, ImportError>;
+```
+
+**Completeness report** — a NEW public type. Place it on the crate surface (declared in `mine_json.rs`,
+re-exported from `lib.rs` as `pub use mine_json::CompletenessReport;`) so item 8b's CLI can consume it.
+
+```rust
+/// What the miner could NOT find that the app needs (item 8b's CLI renders this to the user).
+/// Each `missing_*` flag is TRUE when that IMPORTANT class is empty in the produced MasterCv.
+/// `ignored_role_arrays` names every role-shaped array that lost the highest-priority-key
+/// contest (multi-array disambiguation, §4) — surfaced, never silently merged in v1.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]   // Serialize so 8b can emit it as JSON
+pub struct CompletenessReport {
+    pub missing_person_name: bool,        // person.name empty
+    pub missing_experience: bool,         // no experience with BOTH jobTitle+businessName non-empty
+    pub missing_achievement: bool,        // no achievement.description anywhere
+    pub missing_skill: bool,              // no skill in any of the four lists
+    pub ignored_role_arrays: Vec<String>, // source key names of role arrays not chosen (v1: no merge)
+}
+
+impl CompletenessReport {
+    /// True when every IMPORTANT class is present (all four `missing_*` are false). The CLI uses
+    /// this for its exit-status / "ready to install?" decision in 8b.
+    pub fn is_complete(&self) -> bool;
+}
+
+/// Pure: derive a completeness report from a produced MasterCv plus the names of role arrays the
+/// miner ignored during disambiguation. Takes ignored names because they are not recoverable from
+/// the (already-collapsed) MasterCv. The CLI in 8b calls `import_cv_json` then `completeness`.
+pub fn completeness(cv: &aa_core::MasterCv, ignored_role_arrays: &[String]) -> CompletenessReport;
+```
+
+> **DISCUSS-8a-1 (API shape choice — RESOLVED to the signature above).** `ignored_role_arrays` is
+> not reconstructable from a finished `MasterCv`, so `completeness(&MasterCv)` *alone* cannot report
+> it. Two options: (a) `completeness(&MasterCv, &[String])` — the chosen shape, keeps the two pure
+> functions separate and individually testable; or (b) have `import_cv_json` return
+> `(MasterCv, CompletenessReport)`. Chose (a) because the task pins `import_cv_json -> Result<MasterCv,
+> ImportError>` as the entry point and pins `completeness(&MasterCv) -> CompletenessReport` as a
+> distinct function — the `&[String]` second arg is the minimal honest addition. ds-step-1 must
+> encode this in EARS R-INGEST-11/12. If the orchestrator prefers (b), flag back before ds-step-3.
+
+**`ImportError` arm.** **No new arm.** `ImportError::Empty` ("résumé produced no recognisable
+content") fits the no-recognisable-content failure mode exactly and is already wired through Display.
+The miner returns `Err(ImportError::Empty)` when the value yields no person name AND no experience AND
+no skills. (We are inside the same crate; `Empty`'s doc comment is résumé-flavoured but its message
+"produced no recognisable content" is format-agnostic — acceptable. If ds-step review judges the
+message misleading for JSON, the *minimal* change is widening the doc comment, NOT adding an arm. Do
+not add an arm without a genuinely distinct failure mode — none exists here.)
+
+### 2. Internal module decomposition of `mine_json.rs` (described, not coded)
+
+A single PRIVATE module. Top-level `import_cv_json` orchestrates four pure extractor helpers, each
+unit-tested at L1. None panic; all are total over arbitrary `serde_json::Value`.
+
+- `fn import_cv_json(v) -> Result<MasterCv, ImportError>` — orchestrator. Picks the person source
+  object (§3), runs the three extractors, assembles `MasterCv` (schema_version `"1.0.0"`, `headline`
+  = professionalTitle mirror as map.rs does), applies the Empty gate, returns the struct. Carries the
+  ignored-role-array names out via a small internal struct so `completeness` is callable afterwards
+  (the orchestrator itself does not build the report — `completeness` is the separate public fn).
+- `fn person_source<'a>(v: &'a Value) -> &'a Value` — returns the dedicated person object when a
+  `person | basics | profile` key is present (first match in that priority order), else the top-level
+  `v`. Pure lookup; never clones.
+- `fn extract_person(src: &Value, root: &Value) -> Person` — pulls each `Person` field by the
+  synonym priority order (§4), case-insensitive key match (never fixed paths). Falls back to `root`
+  for contact fields when the dedicated object lacks them (a `basics` object may hold name/summary
+  while email sits top-level). Empty/whitespace strings → `None` (honesty: don't emit blank fields;
+  also keeps `person` `additionalProperties` clean).
+- `fn extract_experience(v: &Value) -> (Vec<Experience>, Vec<String>)` — finds the winning role
+  array (§4 disambiguation), maps each element to an `Experience` (id `imp_exp_N`), coerces dates
+  (§4 numeric coercion), splits achievements (§4 newline split, id `imp_exp_N_bM`). Returns the
+  built experiences AND the names of role arrays it ignored (for the completeness report). A
+  required field absent in the source → empty string placeholder (jobTitle/businessName/startDate);
+  an experience whose jobTitle AND businessName are both empty is still emitted but counts as
+  "incomplete" in completeness. **Note:** validate.js requires non-empty `jobTitle/businessName/
+  startDate` — see DISCUSS-8a-2.
+- `fn extract_skills(v: &Value) -> SkillLists` — walks the skills synonym keys (§4), buckets each
+  array by source key into one of the four master-CV lists (default category "skills"), maps string
+  OR `{name, proficiency|level|rating}` elements, applies the proficiency honesty default. Returns a
+  small struct with the four `Vec<Skill>` so the orchestrator can place them.
+- small helpers: `fn str_field(obj, &[&str]) -> Option<String>` (first present non-empty synonym,
+  case-insensitive); `fn coerce_date(v: &Value) -> String` (number → its integer string, string →
+  verbatim, else empty); `fn split_achievement(s: &str) -> Vec<String>` (split on `\n`, trim, drop
+  empties; a no-newline blob → one bullet); `fn skill_from(v: &Value) -> Option<Skill>`
+  (string-or-object element → Skill with default proficiency); `fn lc_get<'a>(obj, key) -> Option<&'a
+  Value>` (case-insensitive object lookup — the primitive every synonym match builds on).
+
+> **DISCUSS-8a-2 (empty required-field placeholder vs schema validity — DECISION NEEDED before
+> ds-step-3).** validate.js (L3) FAILS an experience with an empty `jobTitle`, `businessName`, or
+> `startDate`. So the miner cannot emit an experience that is missing one of those and still pass L3.
+> Resolution pinned for ds-step: **an experience source element is only emitted as an `Experience`
+> when it yields a non-empty `jobTitle` AND a non-empty `businessName`** (the two human-meaningful
+> required fields); `startDate` defaults to `""`→ but that fails validate.js too, so when a date is
+> absent the miner emits `startDate` only if present and **drops the experience to the completeness
+> report otherwise is WRONG**. Cleaner pinned rule: emit an `Experience` iff jobTitle non-empty
+> (the minimum identity); fill `businessName`/`startDate` with `""` when absent **and** in that case
+> the L3 fixtures must only assert schema-validity on inputs that DO carry those fields. The
+> DW_CV-shaped and JSON-Resume-shaped fixtures (L3) carry full experiences, so they validate. The
+> *minimal* fixture (L1/L2) is asserted at struct level, NOT through validate.js. **ds-step-1 must
+> write R-INGEST-13 to pin exactly this:** "an experience element SHALL be emitted iff it yields a
+> non-empty jobTitle; absent businessName/startDate SHALL be `""`; the completeness report SHALL flag
+> experiences lacking jobTitle+businessName." L3 schema-validity is asserted only on fixtures whose
+> emitted experiences carry all three required fields. This keeps validate.js unchanged and honest.
+
+### 3. Synonym map + dedicated-person-object preference
+
+Case-insensitive KEY match (`lc_get`), never fixed JSON paths. The dedicated person object is
+preferred when present: `person_source` checks `person`, then `basics`, then `profile` (that order);
+contact fields not found there fall back to the top-level object.
+
+### 4. Synonym priority ORDER per field (deterministic; "highest-priority key wins")
+
+Each list is scanned left→right; the FIRST present, non-empty key wins. This makes every field
+deterministic and individually testable.
+
+**Person**
+| Field | Priority order (first present non-empty wins) |
+|---|---|
+| name | `name` → `fullName` → `candidateName` |
+| professionalTitle | `professionalTitle` → `title` → `headline` → `role` → `label` |
+| professionalDescription | `professionalDescription` → `summary` → `about` → `bio` |
+| email | `email` |
+| phone | `phone` |
+| location | `location` |
+| linkedin | `linkedin` |
+| github | `github` |
+| website | `website` → `url` |
+
+**Experience element**
+| Field | Priority order |
+|---|---|
+| jobTitle | `jobTitle` → `title` → `position` → `role` |
+| businessName | `businessName` → `company` → `employer` → `organisation` |
+| startDate | `startDate` → `start` → `from` |
+| endDate | `endDate` → `end` → `to` |
+| achievements (array) | `achievementsTasks` → `achievements` → `highlights` → `bullets` → `responsibilities` → `tasks` |
+
+**Experience ARRAY (the container) — multi-array disambiguation.**
+Priority order of candidate role-array keys: `experience` → `work` → `workExperience` → `employment`
+→ `positions` → `history`. The **highest-priority key present that holds a non-empty array wins**;
+every other role-shaped array present is **ignored and NAMED** in `CompletenessReport.ignored_role_arrays`
+(no silent merge in v1). Achievement element is a string OR `{description|text|name}` (that priority).
+
+**Skills** — buckets by SOURCE KEY (default category "skills"):
+| Master-CV list | Source keys (case-insensitive) |
+|---|---|
+| programmingLanguages | `programmingLanguages` |
+| skills (default) | `skills`, `languages`, plus any non-matching skill-array key |
+| toolsTechnologies | `tools`, `technologies`, `toolsTechnologies` |
+| asAServices | `asAServices`, `services` |
+
+Skill element: string → `Skill{name, proficiency:3}`; object → name from `name`, proficiency from
+`proficiency` → `level` → `rating` (first present, clamped/validated to 1..5; absent → 3).
+
+> **DISCUSS-8a-3 (proficiency coercion bound — pin in R-INGEST-7).** Source `level`/`rating` may be
+> out of 1..5 (e.g. a 0–100 scale or a 0). validate.js rejects anything outside 1..5. Pinned rule for
+> ds-step: a present numeric rating is used **only if it is already an integer in 1..=5**; anything
+> else (0, 7, 4.5, "expert") → the honesty default 3. This guarantees schema validity without
+> inventing a scale mapping (which would be dishonest). `language` synonym note: `languages` is
+> bucketed to `skills` (spoken/programming ambiguity is out of scope v1 — recorded under §6 known
+> limitations).
+
+**Non-English keys** — out of scope v1; recorded as a known limitation (§6), no behaviour.
+
+### 5. EARS — the new `R-INGEST-*` family (→ `doc/spec/item-8a-json-miner.md`)
+
+ds-step-1 authors these into a NEW spec doc at **`doc/spec/item-8a-json-miner.md`** (same
+"SPECIFICATION ONLY" header convention as `doc/spec/item-2-resume-import.md`), with a traceability
+table mapping each id to its proving test.
+
+| ID | EARS statement |
+|---|---|
+| **R-INGEST-1** | WHEN `import_cv_json` is given a JSON object, the miner SHALL map person fields by case-insensitive synonym keys (name/fullName/candidateName; professionalTitle/title/headline/role/label; professionalDescription/summary/about/bio; email/phone/location/linkedin/github/website/url) onto `aa_core::Person`, never by fixed JSON paths. |
+| **R-INGEST-2** | WHEN a dedicated `person`/`basics`/`profile` object is present, the miner SHALL prefer it (in that priority order) as the person source, falling back to the top-level object for contact fields it does not contain. |
+| **R-INGEST-3** | WHEN one or more experience elements are present under the winning role-array, the miner SHALL map each to one `experience[]` entry by synonym keys (jobTitle/title/position/role; businessName/company/employer/organisation; startDate/start/from; endDate/end/to). |
+| **R-INGEST-4** | WHEN multiple candidate role-shaped arrays are present, the miner SHALL select the highest-priority synonym key (`experience` → `work` → `workExperience` → `employment` → `positions` → `history`) holding a non-empty array, SHALL ignore the others, and SHALL NAME every ignored array in the completeness report (no silent merge, v1). |
+| **R-INGEST-5** | WHEN an achievement value is a single string, the miner SHALL split it into bullets on newlines (trimming, dropping empties); a string with no newline SHALL remain exactly one bullet. Achievement elements MAY be strings OR objects keyed `description`/`text`/`name` (that priority). |
+| **R-INGEST-6** | WHEN a date field is a JSON number, the miner SHALL coerce it to its integer string (e.g. `2019` → `"2019"`); a string date SHALL pass through verbatim (odd formats unaltered). |
+| **R-INGEST-7** | The miner SHALL map skill arrays under `skills`/`programmingLanguages`/`languages`/`tools`/`technologies`/`toolsTechnologies`/`asAServices`/`services` into the corresponding master-CV list (default `skills`), each element a string OR `{name, proficiency\|level\|rating}`; proficiency SHALL be the source rating only when it is an integer in 1..=5, otherwise the honest default 3 (never invented, never inflated). |
+| **R-INGEST-8** | The miner SHALL assign deterministic synthetic ids `imp_exp_N` (N = 0-based source index) to experiences and `imp_exp_N_bM` (M = 0-based bullet index) to achievements, so the same input value yields byte-identical output. |
+| **R-INGEST-9** | The miner SHALL build the `MasterCv` directly and SHALL NOT route through the text `Segments`/`map::to_master_cv` path (which would drop the contact block and real proficiencies); it SHALL produce a NEW document and SHALL NOT mutate any input (I1). |
+| **R-INGEST-10** | The miner SHALL emit output that deserializes as `aa_core::MasterCv` AND validates against `doc/schemas/master-cv.schema.json` (`schemaVersion = "1.0.0"`; required `person`/`experience`; `person` additionalProperties:false; skill proficiency 1..5; experience `id/jobTitle/businessName/startDate` non-empty). |
+| **R-INGEST-11** | `completeness(&MasterCv, &[ignored])` SHALL report which IMPORTANT classes are empty: person.name; ≥1 experience with jobTitle AND businessName; ≥1 achievement.description; ≥1 skill. |
+| **R-INGEST-12** | `completeness` SHALL list, in `ignored_role_arrays`, the source key names of every role-shaped array ignored during disambiguation (R-INGEST-4), so item 8b's CLI can surface them. |
+| **R-INGEST-13** | An experience source element SHALL be emitted as an `experience[]` entry iff it yields a non-empty `jobTitle`; absent `businessName`/`startDate` SHALL be `""`; the completeness report SHALL flag absence of a jobTitle+businessName experience. (Pins DISCUSS-8a-2; keeps validate.js unchanged.) |
+| **R-INGEST-14** | IF the value carries no recognisable CV content (no person name AND no experience AND no skill), THEN `import_cv_json` SHALL return `Err(ImportError::Empty)` and SHALL NOT panic on any JSON input (typed-error guarantee, I5). |
+
+### 6. Known limitations (v1, recorded — no behaviour)
+
+Non-English keys; the spoken-vs-programming `languages` ambiguity (bucketed to `skills`); no silent
+merge of multiple role arrays (named, not merged); proficiency scales other than integer-1..5 collapse
+to the honest default 3.
+
+### 7. Test coordinates (L1–L5) + fixtures
+
+**Fixture location.** No JSON-input fixtures exist yet (the repo's `fixtures/personas/*.cv.json` are
+*master-CV-shaped* test oracles, not arbitrary input). Add a NEW dir
+**`crates/cvimport/tests/fixtures/json/`** for the arbitrary-shaped INPUT fixtures (crate-local, since
+they are miner-specific input, not shared persona oracles). All fixtures are SYNTHETIC and PII-free —
+emails only `@example.{com,org,net}` / `@job-hunter.example` (pii-guard rule). Fixtures:
+
+| File | Shape | Purpose |
+|---|---|---|
+| `dwcv_shaped.json` | PascalCase: `Name`, `ProfessionalTitle`, `WorkExperience[]` (`JobTitle`/`BusinessName`/`StartDate`/`AchievementsTasks`), `ProgrammingLanguages[]` ({name,proficiency}) | the real-file shape, synthetic; proves case-insensitive synonym mapping + real proficiencies preserved + contact block preserved |
+| `json_resume_shaped.json` | JSON-Resume: `basics{name,label,summary,email,phone,profiles}`, `work[]` (`position`/`name`/`startDate`/`highlights[]`), `skills[]{name,level}` | proves dedicated-person-object preference (`basics`) + alt synonyms (`work`/`position`/`highlights`) |
+| `multi_role_arrays.json` | both `experience[]` and `work[]` present, non-empty | proves disambiguation: `experience` wins, `work` named in `ignored_role_arrays` |
+| `numeric_dates.json` | experience with `startDate: 2019` (number), `endDate: 2022` | proves numeric-date coercion → `"2019"`/`"2022"` |
+| `minimal.json` | `{ "name": "A. Tester", "skills": ["Rust"] }` — name + one skill, no experience | proves sparse input still yields a valid (mostly-empty) MasterCv; completeness flags missing experience+achievement |
+| `empty.json` | `{}` (and a sibling `{ "notes": "hi" }` for the no-recognisable-content case) | proves `Err(ImportError::Empty)` |
+
+**Achievement-newline-split fixture data:** give one `dwcv_shaped` achievement a `"line one\nline two"`
+string value so L1 proves the split → 2 bullets and a no-newline sibling → 1 bullet.
+
+**Test levels** (new files; mirror item-2's layout):
+
+- **L1 — `mod tests` inside `mine_json.rs`** (unit, in-memory `serde_json::json!` literals — fastest,
+  no fixture IO). Cover every extractor helper + every priority-order arm + every honesty default +
+  the Empty gate. This is where the bulk of coverage lives. Each test names its `R-INGEST-*` id.
+  - person: each synonym wins in order (R-INGEST-1); dedicated-object preference + top-level fallback (R-INGEST-2); blank string → `None`.
+  - experience: synonym mapping (R-INGEST-3); multi-array disambiguation + ignored names (R-INGEST-4); id synthesis (R-INGEST-8); jobTitle-required emission rule (R-INGEST-13).
+  - achievements: newline split → N bullets; no-newline → 1 bullet; object form (R-INGEST-5).
+  - dates: number → string, string verbatim (R-INGEST-6).
+  - skills: bucketing by source key, string + object elements, proficiency-in-range vs default (R-INGEST-7).
+  - completeness: each `missing_*` flag true/false; `ignored_role_arrays` populated; `is_complete` (R-INGEST-11/12).
+  - empty gate: `{}` and `{"notes":..}` → `Err(Empty)`, no panic (R-INGEST-14).
+- **L2 — `crates/cvimport/tests/mine_json_l2.rs`** (public surface). `import_cv_json` over each fixture
+  via a `load_json(name)` support helper; assert recovered key fields (DW_CV-shaped recovers name +
+  contact block + real proficiencies — the regression that motivates the whole item); the typed-error
+  path (`empty.json` → `Err(ImportError::Empty)`); determinism (same value → byte-identical `to_json`).
+- **L3 — extend `crates/cvimport/tests/boundary_schema.rs`** (reuse the existing `validate_with_node`
+  harness). `import_cv_json(dwcv_shaped)` and `import_cv_json(json_resume_shaped)` → `to_json` → MUST
+  pass `tools/fake-data/validate.js` (R-INGEST-10). These two fixtures carry full experiences so they
+  satisfy validate.js's non-empty `jobTitle/businessName/startDate`.
+- **L4 — `crates/cvimport/tests/mine_json_l4.rs`** (system/integration of the two public fns together):
+  `import_cv_json` then `completeness` over `multi_role_arrays.json` (ignored array named) and
+  `minimal.json` (missing experience+achievement flagged, name+skill present) — the exact pair item
+  8b's CLI will drive. Non-vacuous twin: a complete fixture → `is_complete() == true`.
+- **L5 — STORY: `crates/cvimport/tests/mine_json_story_l5.rs`** (the miner user journey end-to-end on
+  the DW_CV-shaped fixture): mine → completeness → schema-validate, asserting the contact block + real
+  proficiencies survived AND the report is complete. Perf-delta gated via the shared `perf_gate.rs`
+  (`#[path]`-include, same as `story_l5.rs`).
+
+**R-INGEST → proving test map** (ds-step fills exact fn names; coordinates fixed here):
+
+| R-INGEST | Proving test(s) |
+|---|---|
+| 1 | L1 person-synonym-order tests; L2 dwcv recovers name |
+| 2 | L1 dedicated-object-preference + fallback; L2 json_resume recovers from `basics` |
+| 3 | L1 experience-synonym tests; L2 json_resume `work`/`position` |
+| 4 | L1 disambiguation test; L4 multi_role_arrays ignored-name |
+| 5 | L1 newline-split + object-achievement tests |
+| 6 | L1 numeric-date test; L2 numeric_dates fixture |
+| 7 | L1 skill bucketing + proficiency tests; L2 dwcv real proficiencies |
+| 8 | L1 id-synthesis test; L2 determinism |
+| 9 | L2 dwcv contact-block-preserved (proves NOT routed through Segments); L1 input-not-mutated |
+| 10 | L3 dwcv + json_resume validate.js |
+| 11 | L1 completeness flag tests; L4 minimal |
+| 12 | L1 ignored-array test; L4 multi_role_arrays |
+| 13 | L1 jobTitle-required emission test |
+| 14 | L1 empty-gate tests; L2 empty.json → Err(Empty) |
+
+### 8. Coverage posture
+
+100%-of-reachable, measured by the existing CI gate (`cargo llvm-cov --workspace --all-targets
+--ignore-filename-regex 'crates/cli/' --fail-under-lines 99`). Target: `mine_json.rs` 100% reachable
+lines. The L1 in-module tests carry the burden so every helper branch is hit without fixture IO.
+Any genuinely unreachable region (expected: none — there are no infallible-serialize or defensive-IO
+arms in a pure value-walker, since `import_cv_json` takes a parsed `&Value` and returns a struct) gets
+a documented `P-COV-cvimport-mine-N` pragma in `doc/COVERAGE.md` under a new
+"Coverage policy — item 8a (`crates/cvimport`, adaptive JSON miner)" section, mirroring the existing
+cvimport pragma format. **Expectation: zero new pragmas** — flag in ds-step review if any helper has
+an unreachable arm and justify it rather than lowering the floor.
+
+### 9. Perf baseline decision
+
+Item 8a's STORY rides a **NEW tracked baseline file**:
+**`doc/perf/cvimport-jsonmine-story-baseline.txt`** — NOT the existing `cvimport-import-story-baseline.txt`.
+Rationale: the existing import-story baseline measures the PDF/DOCX render+extract journey (typst CLI +
+zip), a fundamentally different cost profile from a pure in-memory JSON walk (orders of magnitude
+faster). Sharing the baseline would make the delta gate vacuous. The new baseline is a tracked file,
+seeded once by a human from a clean local run (per `perf_gate.rs` "never self-overwritten" rule);
+until it exists, `read_baseline` returns `None` and only the absolute 60 s budget applies (a fresh
+checkout does not fail). The STORY uses the same `BUDGET_SECS = 60.0` / `DELTA_FACTOR = 3.0` constants.
+
+### 10. CI / inheritance gates (keep green)
+
+`crates/cvimport` already rides the `rust-workspace` job. Item 8a adds only one private module + new
+test files + new input fixtures — no new workspace member, no new dependency (`serde_json` is already a
+cvimport dep; `serde` Serialize for `CompletenessReport` is already available via core's serde). Keep
+`foundation`/`pii-guard`/`capture-core`/`ui` green; `ui` is BLOCKING — but this item touches no
+frontend, so it cannot regress `ui`. pii-guard: all new JSON input fixtures are synthetic, emails only
+`@example.*` / `@job-hunter.example`.
+
+### 11. Build order + handoff
+
+Topological, no cycle: **J1 → J2 → J3 → J4 → J5**.
+- **J1 [ds-step-1 / EARS]** — author `doc/spec/item-8a-json-miner.md` (R-INGEST-1..14 + Gherkin +
+  traceability table). Resolve DISCUSS-8a-1/2/3 into the spec (the decisions are pinned above).
+- **J2 [ds-step-2 / fixtures]** — add the six synthetic input fixtures under
+  `crates/cvimport/tests/fixtures/json/` + a `load_json` support helper in `tests/support/mod.rs`.
+- **J3 [ds-step-3 / tests]** — write the FAILING L1–L5 tests against the public API shapes (§1) per
+  the test map (§7). Tests compile against `import_cv_json` / `CompletenessReport` / `completeness`.
+- **J4 [ds-step-4 / implement]** — implement `mine_json.rs` (§2) + the `lib.rs` `mod`/`pub use` lines.
+  Make L1–L5 green; fmt + clippy `-D warnings`; 100%-of-reachable coverage; document any pragma.
+- **J5 [ds-step-5 / story+perf]** — finalise the L5 STORY + create the new perf baseline file (§9).
+
+Hand each task to `lifecycle-orchestrator` with its named ds-step handler; builder-lead does not run
+the loop. **Do NOT plan or build item 8b (the CLI flow) here** — it consumes `import_cv_json` +
+`CompletenessReport` as defined above and is a separate cycle.
+
+### 12. Open DISCUSS items for the orchestrator (decide before J4)
+
+1. **DISCUSS-8a-1** — `completeness(&MasterCv, &[String])` vs `import_cv_json -> (MasterCv, Report)`.
+   Pinned to the two-arg pure-fn shape; confirm or flip before J3.
+2. **DISCUSS-8a-2 / R-INGEST-13** — the jobTitle-required emission rule that keeps validate.js
+   unchanged and honest. Pinned; confirm before J3.
+3. **DISCUSS-8a-3 / R-INGEST-7** — proficiency used only when integer-in-1..=5, else default 3.
+   Pinned; confirm before J4.
+
+None of these are blocking the EARS authoring (J1) — they are pinned with a chosen resolution; the
+orchestrator only needs to ratify or flip.

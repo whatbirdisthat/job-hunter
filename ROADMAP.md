@@ -122,25 +122,35 @@ Three deterministic capabilities (Typst templates + Rust core + React UI), all r
   new pure modules 100%, no new pragmas); synthetic PII-free personas only. `ui` job stays
   continue-on-error per issue #2 (UI tests green locally, 24/24). **The backlog is now complete.**
 
+### 8a. Adaptive CV ingestion — heuristic JSON miner + completeness (engine) ✅ (branch `item-8a-json-miner`)
+The Master CV schema is now **internal-only**: arbitrary CV JSON is *mined* for the fields the app needs
+rather than the canonical shape being demanded. New PRIVATE `crates/cvimport/src/mine_json.rs` + public
+surface `import_cv_json(&serde_json::Value) -> Result<MasterCv, ImportError>`, `completeness(&MasterCv,
+&[String]) -> CompletenessReport`, `ignored_role_arrays(&Value)`, and `struct CompletenessReport`
+(`is_complete()`). Builds `MasterCv` **directly** (NOT via the `pub(crate)` text `Segments`/
+`map::to_master_cv`, which have no contact slots and force proficiency 3 — proven by a regression test
+`dwcv_contact_block_preserved_proves_not_segment_routed`), reusing ONLY the `imp_exp_N`/`imp_exp_N_bM`
+id convention + the honesty defaults (proficiency 3 only when the source has none; never invent text).
+**Case-insensitive synonym** key-matching for person/experience/skills (handles DW_CV PascalCase,
+JSON-Resume `basics`/`work`, LinkedIn-export). **Pinned disambiguation:** highest-priority candidate
+role-array wins (others ignored + NAMED in the completeness report, no silent merge); single achievement
+blob newline-split (no-`\n` → one bullet); numeric dates coerced (`2019` → `"2019"`); dedicated
+`person|basics|profile` object preferred; a present numeric proficiency used only when already an
+integer 1–5 (else honest 3); non-English keys out of scope v1 (known limitation). `ImportError::Empty`
+reused (no new arm) when no name/experience/skills recoverable. EARS `R-INGEST-1..14`
+(`doc/spec/item-8a-json-miner.md`). Full L1–L5 + STORY perf-delta gate (new tracked baseline
+`doc/perf/cvimport-jsonmine-story-baseline.txt`); `mine_json.rs` 100% regions/functions/lines with
+**zero new pragmas**; workspace coverage 99.36% (above floor). Synthetic PII-free fixtures only
+(`crates/cvimport/tests/fixtures/json/`). Reviewer panel PASS (EARS/BDD/TEST-DESIGN/CORRECTNESS/
+REGRESSION/COVERAGE). DISCUSS-8a-1/2/3 resolved per plan; DISCUSS-8a-4 (`work[].name` as
+lowest-priority businessName synonym, scoped to role-array elements) ratified. The completeness report
+is what item 8b's CLI consumes.
+
 ## TODO (being built, in order — one PR per item)
 
 > Robustness drive so the tool works on real CVs. Prompted by the `applicant-advocate` CLI failing on
 > a real DW_CV `cv.json` (UTF-8 BOM + legacy PascalCase schema). The BOM half shipped as a hotfix
 > (PR #10); the rest is below. Plan + adversarial review: `doc/idea/applicant-advocate/` lineage.
-
-### 8a. Adaptive CV ingestion — heuristic JSON miner + completeness (engine) · PRIORITY: NOW
-Make the Master CV schema **internal-only**: mine the fields the app needs out of **arbitrary CV
-JSON** instead of demanding the canonical shape. New private `crates/cvimport/src/mine_json.rs` + a
-public `import_cv_json(&serde_json::Value) -> Result<MasterCv, ImportError>` that **builds `MasterCv`
-directly** (NOT through cvimport's `pub(crate)` text `Segments`/`map::to_master_cv`, which can't carry
-contact fields and would force proficiency 3). Case-insensitive **synonym** key-matching for
-person/experience/skills (handles DW_CV, JSON-Resume, LinkedIn-export). **Pinned disambiguation:**
-highest-priority candidate array wins (others reported, no silent merge); newline-split a single
-achievement blob; coerce numeric dates → string; prefer a `person|basics|profile` object; non-English
-keys out of scope v1 (known limitation). Pure `completeness(&MasterCv)` reports empty IMPORTANT classes
-(`person.name`; ≥1 experience w/ jobTitle+businessName; ≥1 achievement; ≥1 skill) + ignored arrays.
-Reuse the `imp_exp_N` id convention + honesty defaults (never invent text). Synthetic PII-free
-fixtures incl. multi-candidate-array + numeric-date + minimal + empty. EARS `R-INGEST-*`.
 
 ### 8b. Adaptive CV ingestion — CLI flow + sample-data system (structural honesty guard) · PRIORITY: HIGH
 Wire 8a into the CLI: try strict `MasterCv::from_json`; **on parse failure → mine**; then run
