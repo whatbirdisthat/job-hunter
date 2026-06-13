@@ -8,6 +8,7 @@ gitignored `target/` file, which self-ratcheted and made the delta arm vacuous).
 | File | Gated test |
 |---|---|
 | `cvimport-import-story-baseline.txt` | `crates/cvimport/tests/story_l5.rs` |
+| `cvimport-jsonmine-story-baseline.txt` | `crates/cvimport/tests/mine_json_story_l5.rs` (item 8a adaptive JSON-miner journey: mine → completeness → schema-validate) |
 | `desktop-story-baseline.txt` | `apps/desktop/src-tauri/tests/story_l5.rs` (deterministic export) |
 | `desktop-advocate-story-baseline.txt` | `apps/desktop/src-tauri/tests/story_l5.rs` (item #3 advocate-rewrite journey, flag ON + stub) |
 | `capture-clip-story-baseline.txt` | `packages/capture-core/test/story.test.mjs` (item #4 clip→json journey, `node --test`) |
@@ -49,6 +50,16 @@ in-memory reports (`ats_report`, `keyword_coverage`), so its **observed steady-s
 above — NOT copied from another story). At `0.300000` the 3×-delta arm fires at 0.900 s, so a
 real multi-hundred-ms regression FAILS while the 0.084 s steady-state passes with headroom; the
 60 s absolute budget remains the hard ceiling.
+
+The item-8a adaptive JSON-miner journey is a pure in-memory `serde_json::Value` walk
+(`import_cv_json`) + `completeness` + ONE `validate.js` node subprocess (the dominant cost is
+the node spawn, not the mine). Its **observed steady-state is ~0.022 s** (measured 3× via
+`cargo test -p aa-cvimport --test mine_json_story_l5 -- --nocapture`: 0.022 / 0.023 / 0.021 s).
+Its baseline is **`0.075000`** (≈3.4× the observed steady-state, per the rule above — NOT copied
+from the import-story baseline, whose PDF/DOCX render+extract journey is orders of magnitude
+slower, which would make the delta arm vacuous). At `0.075000` the 3×-delta arm fires at 0.225 s,
+so a real multi-hundred-ms regression FAILS while the 0.022 s steady-state passes with headroom;
+the 60 s absolute budget remains the hard ceiling.
 
 The item-#5 tracker journey is pure in-memory cores + a tiny atomic JSON file write (no typst
 render), so its **observed steady-state is ~0.001 s** (measured 3× via

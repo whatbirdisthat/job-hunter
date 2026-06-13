@@ -1,0 +1,29 @@
+{
+  "name": "Sam Okafor",
+  "email": "sam.okafor@example.net",
+  "experience": [
+    {
+      "jobTitle": "Lead Engineer",
+      "businessName": "Northwind Labs",
+      "startDate": "2019",
+      "achievements": [
+        "Built the data ingestion pipeline"
+      ]
+    }
+  ],
+  "work": [
+    {
+      "position": "Junior Developer",
+      "name": "Old Co",
+      "startDate": "2015"
+    }
+  ],
+  "positions": [
+    {
+      "title": "Intern",
+      "company": "Tiny Startup",
+      "from": "2014"
+    }
+  ],
+  "skills": ["SQL", "Airflow"]
+}

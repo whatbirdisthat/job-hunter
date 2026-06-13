@@ -5,7 +5,7 @@
 
 mod support;
 
-use aa_cvimport::{import_resume, ResumeKind};
+use aa_cvimport::{import_cv_json, import_resume, ResumeKind};
 use std::io::Write;
 use std::time::Instant;
 
@@ -61,6 +61,27 @@ fn imported_pdf_output_validates_against_master_cv_schema() {
     let cv = import_resume(&bytes, ResumeKind::Pdf).unwrap();
     let (ok, msg) = validate_with_node(&cv.to_json().unwrap());
     assert!(ok, "imported PDF master CV must validate: {msg}");
+}
+
+#[test]
+fn mined_dwcv_validates() {
+    // R-INGEST-10 — the adaptive JSON miner's output for a DW_CV-shaped value (item 8a)
+    // validates against the master-cv schema. This fixture carries full experiences
+    // (jobTitle+businessName+startDate), so it satisfies validate.js's non-empty rule
+    // (DISCUSS-8a-2 / R-INGEST-13). Reuses the SAME `validate_with_node` harness.
+    let v = support::load_json("dwcv_shaped.json");
+    let cv = import_cv_json(&v).unwrap();
+    let (ok, msg) = validate_with_node(&cv.to_json().unwrap());
+    assert!(ok, "mined DW_CV-shaped master CV must validate: {msg}");
+}
+
+#[test]
+fn mined_json_resume_validates() {
+    // R-INGEST-10 — the JSON-Resume-shaped value also mines to schema-valid output.
+    let v = support::load_json("json_resume_shaped.json");
+    let cv = import_cv_json(&v).unwrap();
+    let (ok, msg) = validate_with_node(&cv.to_json().unwrap());
+    assert!(ok, "mined JSON-Resume master CV must validate: {msg}");
 }
 
 #[test]

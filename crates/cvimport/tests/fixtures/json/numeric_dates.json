@@ -1,0 +1,16 @@
+{
+  "name": "Quinn Vasquez",
+  "email": "quinn.vasquez@example.org",
+  "experience": [
+    {
+      "jobTitle": "Data Engineer",
+      "businessName": "Meridian Analytics",
+      "startDate": 2019,
+      "endDate": 2022,
+      "achievements": [
+        "Migrated the warehouse to columnar storage"
+      ]
+    }
+  ],
+  "skills": ["Spark"]
+}

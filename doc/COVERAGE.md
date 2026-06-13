@@ -95,6 +95,39 @@ the L5 STORYs are perf-delta gated against TRACKED baselines under `doc/perf/`
 
 ---
 
+# Coverage policy — item 8a (`crates/cvimport`, adaptive JSON miner)
+
+**Same floor: 100% of reachable code** (`cargo llvm-cov --workspace --all-targets
+--ignore-filename-regex 'crates/cli/' --fail-under-lines 99`). Item 8a adds one private module
+`crates/cvimport/src/mine_json.rs` (the adaptive JSON miner) + its L1 in-module tests, the L2/L4/L5
+integration targets, the two L3 cases in `boundary_schema.rs`, and the synthetic input fixtures
+under `crates/cvimport/tests/fixtures/json/`.
+
+**`mine_json.rs` is 100.00% — regions, functions AND lines — with ZERO new pragmas.** A pure
+`serde_json::Value` walker that takes a parsed `&Value` and returns a struct has no infallible-
+serialize or defensive-IO arms to exempt, so every branch is reachable from a real input. The L1
+in-module tests carry the burden (every person/experience/skill synonym arm; the dedicated-object
+preference + top-level fallback; multi-array disambiguation incl. the empty-higher-priority-array
+skip; the jobTitle-required emission rule; achievement newline-split, object-form, and the
+**skip-unusable-array-element** arms; numeric-date coercion incl. the float-truncation and u64 arms;
+the proficiency honesty default for every out-of-range/non-integer/non-number/absent case; the
+**blank-string and non-object skill** drop arms; the Empty gate; the no-mutation guarantee; and the
+arbitrary/hostile-input never-panic guarantee). Workspace line coverage with item 8a is **99.36%**
+(above the floor).
+
+## What IS covered to 100% (reachable) — cvimport JSON miner
+`import_cv_json` (orchestration + Empty gate), `completeness` (every `missing_*` flag true/false +
+`is_complete`), `ignored_role_arrays`, and all extractor helpers (`person_source`, `extract_person`,
+`extract_experience`, `extract_achievements`, `extract_skills`) plus the primitives (`lc_get`,
+`str_field`, `coerce_date`, `split_achievement`, `skill_from`, `proficiency_of`). The L5 STORY
+(`tests/mine_json_story_l5.rs`) is perf-delta gated against the NEW TRACKED baseline
+`doc/perf/cvimport-jsonmine-story-baseline.txt` (`0.075000`s ≈ 3.4× the ~0.022s observed
+steady-state — NOT the import-story baseline, whose render+extract journey is orders of magnitude
+slower; sharing it would make the 3×-delta arm vacuous). **No `P-COV-cvimport-mine-N` pragma was
+required.**
+
+---
+
 # Coverage policy — item #3 (`crates/advocate`, Applicant Advocate LLM layer)
 
 **Same floor: 100% of reachable code** (`cargo llvm-cov --workspace --all-targets`,

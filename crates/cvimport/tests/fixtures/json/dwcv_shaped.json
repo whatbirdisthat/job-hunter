@@ -1,0 +1,36 @@
+{
+  "Name": "Dana Wexford",
+  "ProfessionalTitle": "Principal Platform Engineer",
+  "ProfessionalDescription": "Builds resilient deployment platforms.",
+  "Location": "Wellington, NZ",
+  "Email": "dana.wexford@example.com",
+  "Phone": "+64 21 555 0100",
+  "Linkedin": "https://linkedin.example/in/dana-wexford",
+  "Github": "https://github.example/dwexford",
+  "Website": "https://dana.example.org",
+  "ProgrammingLanguages": [
+    { "name": "Rust", "proficiency": 5 },
+    { "name": "Go", "proficiency": 4 },
+    { "name": "Python", "proficiency": 3 }
+  ],
+  "Tools": [
+    { "name": "Kubernetes", "level": 4 }
+  ],
+  "WorkExperience": [
+    {
+      "JobTitle": "Principal Platform Engineer",
+      "BusinessName": "Harbour Compute",
+      "StartDate": "Mar 2021",
+      "EndDate": "Present",
+      "Location": "Wellington, NZ",
+      "AchievementsTasks": "Cut deploy time from 40m to 6m\nLed migration of 80 services to a new orchestrator\nMentored four engineers"
+    },
+    {
+      "JobTitle": "Senior Backend Engineer",
+      "BusinessName": "Tui Systems",
+      "StartDate": "Jan 2018",
+      "EndDate": "Feb 2021",
+      "AchievementsTasks": "Owned the billing service end to end"
+    }
+  ]
+}
