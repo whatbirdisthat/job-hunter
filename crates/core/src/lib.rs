@@ -35,8 +35,9 @@ pub use render::{
     Renderer, StrengthParagraph,
 };
 pub use samples::{
-    cover_letter_filename, cv_filename, decide, empty_person, fill_with_samples, ExportDecision,
-    MissingFields, BLOCKED_MESSAGE, SAMPLE_WATERMARK,
+    cover_letter_filename, cover_letter_filename_ext, cv_filename, cv_filename_ext, decide,
+    empty_person, fill_with_samples, ExportDecision, MissingFields, BLOCKED_MESSAGE,
+    SAMPLE_WATERMARK,
 };
 pub use tailor::{pick_summary, requirement_for, tailor, TailoredView, DEFAULT_TOP_N};
 pub use types::{Achievement, CoreError, Experience, MasterCv, Person, Skill};

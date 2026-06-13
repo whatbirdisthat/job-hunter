@@ -13,6 +13,7 @@ path = "src/main.rs"
 [dependencies]
 aa-core = { path = "../core" }
 aa-cvimport = { path = "../cvimport" }
+aa-docx = { path = "../docx" }
 aa-jobparse = { path = "../jobparse" }
 serde_json = "1"
 
@@ -20,3 +21,6 @@ serde_json = "1"
 # item 8b L5 STORY: drive the built binary, then assert the SAMPLE watermark text is
 # extractable from the produced cv.SAMPLE.pdf (non-vacuous honesty guard).
 pdf-extract = "0.10"
+# item #10 L5 STORY: a .docx is a ZIP — assert each produced docx is OPENABLE by
+# opening the archive and confirming it contains `word/document.xml`.
+zip = "2"

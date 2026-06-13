@@ -200,18 +200,38 @@ page bound). Fixed BOTH content and template so it reliably fits ONE A4 page and
   (CORRECTNESS / REGRESSION / PERFORMANCE / SECURITY) **PASS** after closing one MEDIUM test-non-vacuity
   finding. EARS `R-CL-*`.
 
-## TODO (being built, in order — one PR per item)
-
-> Robustness drive so the tool works on real CVs. Prompted by the `applicant-advocate` CLI failing on
-> a real DW_CV `cv.json` (UTF-8 BOM + legacy PascalCase schema). The BOM half shipped as a hotfix
-> (PR #10); the rest is below. Plan + adversarial review: `doc/idea/applicant-advocate/` lineage.
-
-### 10. DOCX output (CV + cover letter) · PRIORITY: HIGH
-New crate `crates/docx` (`aa-docx` → `aa-core`) hand-authoring `.docx` via `docx-rs` (dev-dep → runtime;
-MIT). **Shared contract to prevent PDF↔DOCX drift:** consumes the same `TailoredView`/`CoverLetter`
-structs and honors `CvTemplate::heading_vocabulary` (the ATS allow-list, R-ATS-5). CLI gains
-`--format pdf|docx|both`. Acceptance: **structural parity** — opens, round-trips via the cvimport DOCX
-reader, same section set + headings from `heading_vocabulary`, every evidence id/strength present. EARS `R-DOCX-*`.
+### 10. DOCX output (CV + cover letter) ✅ (branch `item-10-docx-output`)
+`.docx` export for BOTH the tailored CV and the cover letter, alongside the existing PDF. New crate
+`crates/docx` (`aa-docx` → `aa-core` ONLY, one-way graph); `docx-rs` (0.4, **MIT**) promoted from a
+cvimport dev-dep to a RUNTIME dep OF THIS CRATE — aa-core stays lean (no docx-rs edge; `cargo tree -p
+aa-core` has none). Hand-authored: CV mirrors the classic/compact structure (header → skills by category
+→ experience+achievements); cover letter mirrors the item-9 one-page structure (greeting → whyRole →
+bulleted strengths each ending `[evidence: id]` → closing).
+- **Shared anti-drift contract (load-bearing):** the DOCX path consumes the SAME
+  `TailoredView`/`CoverLetter` structs the PDF path renders and derives every CV section heading from
+  `CvTemplate::heading_vocabulary` (the ATS allow-list R-ATS-5 depends on), NOT reinvented strings. Skill
+  labels live in one explicit `skill_sections` table, `debug_assert`-ed AND pinned by a real non-debug
+  test (over both templates) so a RELEASE build cannot drift. Honours the selected `CvTemplate`.
+- **SAMPLE watermark parity (8b, no regression):** a sampled `.docx` carries the exact
+  `aa_core::SAMPLE_WATERMARK` sentinel as its first paragraph, and the CLI applies the SAME
+  `.SAMPLE.docx` filename + `--allow-samples`/blocked-export logic it applies to PDFs — one shared
+  `decide()`/watermark decision; the evidence-ledger guard still gates export before any render (both
+  formats). New format-aware `cv_filename_ext`/`cover_letter_filename_ext` helpers (the `&'static` `.pdf`
+  helpers preserved byte-for-byte).
+- **CLI:** `--format pdf|docx|both` (default `pdf`, the prior path byte-for-byte). `both` writes
+  `cv.pdf`+`cv.docx` and `cover-letter.pdf`+`cover-letter.docx` (with the `.SAMPLE.` infix when sampled).
+- **Testing — structural parity (not "text present"):** aa-docx L1 unit + L2 boundary assert valid ZIP
+  w/ `word/document.xml`, round-trip via the cvimport DOCX reader, every emitted heading ∈
+  `heading_vocabulary` ∪ {Experience}, every evidence id / strength / achievement present, watermark
+  on⇔sentinel present, edge personas (empty experience, unicode, hidden experience, missing/empty
+  end-date & location). New CLI L5 STORY: `--format both` against a synthetic persona writes openable
+  `cv.docx` + `cover-letter.docx`, perf-delta gated against a new tracked baseline. docx-rs is
+  LENGTH-deterministic not byte-deterministic under the parallel gate (process-global auto-id counter;
+  authored content byte-identical — empirically verified by the reviewer); equal-length is the pinned
+  invariant. fmt + clippy `-D warnings`; full L1–L5 green; 100%-of-reachable coverage on aa-docx (sole
+  residual: the infallible in-memory `pack` closure, P-COV-2 defensive-IO class, doc/COVERAGE.md).
+  Adversarial reviewer (CORRECTNESS / REGRESSION / ARCHITECTURE / LICENSING) **PASS** — no
+  CRITICAL/HIGH/MEDIUM. Synthetic PII-free fixtures only. EARS `R-DOCX-*`.
 
 ## LATER
 

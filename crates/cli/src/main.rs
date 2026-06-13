@@ -25,9 +25,9 @@ use std::process::ExitCode;
 
 use aa_core::render::CliRenderer;
 use aa_core::{
-    build_cover_letter, cover_letter_filename, coverage_report, cv_filename, cv_ledger, decide,
-    fill_with_samples, guard, tailor, CvTemplate, ExportDecision, LedgerNode, MasterCv,
-    MissingFields, Renderer, BLOCKED_MESSAGE, DEFAULT_TOP_N,
+    build_cover_letter, cover_letter_filename_ext, coverage_report, cv_filename_ext, cv_ledger,
+    decide, fill_with_samples, guard, tailor, CoverLetter, CvTemplate, ExportDecision, LedgerNode,
+    MasterCv, MissingFields, Renderer, TailoredView, BLOCKED_MESSAGE, DEFAULT_TOP_N,
 };
 use aa_cvimport::{completeness, ignored_role_arrays, import_cv_json};
 
@@ -43,6 +43,7 @@ OPTIONS:
     --jd <PATH>         Job description as a plain-text file. Required.
     --out <DIR>         Output directory for the PDFs (default: current directory).
     --template <NAME>   CV template: 'classic' (default) or 'compact' (ATS-friendly).
+    --format <FMT>      Output format: 'pdf' (default), 'docx', or 'both'.
     --use-fakes         Fill EVERY missing IMPORTANT field with an obvious SAMPLE
                         value (non-interactive). Implies --allow-samples; writes
                         *.SAMPLE.pdf with a visible watermark. The 'see it working' path.
@@ -55,6 +56,7 @@ OPTIONS:
 
 OUTPUT (normal):   <out>/cv.pdf              <out>/cover-letter.pdf
 OUTPUT (samples):  <out>/cv.SAMPLE.pdf       <out>/cover-letter.SAMPLE.pdf  (watermarked)
+With --format docx the extension is .docx; --format both writes BOTH per document.
 
 Every rendered claim is checked against your master CV — nothing is invented. A SAMPLE
 document is blocked from normal export, renamed, and watermarked so it cannot reach an
@@ -71,11 +73,41 @@ fn main() -> ExitCode {
     }
 }
 
+/// Output document format (item #10). `Pdf` keeps the pre-#10 behaviour byte-for-byte.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum OutputFormat {
+    Pdf,
+    Docx,
+    Both,
+}
+
+impl OutputFormat {
+    fn parse(s: &str) -> Result<Self, String> {
+        match s.trim().to_lowercase().as_str() {
+            "pdf" => Ok(OutputFormat::Pdf),
+            "docx" => Ok(OutputFormat::Docx),
+            "both" => Ok(OutputFormat::Both),
+            other => Err(format!(
+                "unknown --format: {other} (expected pdf|docx|both)"
+            )),
+        }
+    }
+
+    fn wants_pdf(self) -> bool {
+        matches!(self, OutputFormat::Pdf | OutputFormat::Both)
+    }
+
+    fn wants_docx(self) -> bool {
+        matches!(self, OutputFormat::Docx | OutputFormat::Both)
+    }
+}
+
 struct Args {
     cv: Option<String>,
     jd: Option<String>,
     out: PathBuf,
     template: CvTemplate,
+    format: OutputFormat,
     use_fakes: bool,
     allow_samples: bool,
     non_interactive: bool,
@@ -87,6 +119,7 @@ fn parse_args() -> Result<Option<Args>, String> {
         jd: None,
         out: PathBuf::from("."),
         template: CvTemplate::Classic,
+        format: OutputFormat::Pdf,
         use_fakes: false,
         allow_samples: false,
         non_interactive: false,
@@ -104,6 +137,12 @@ fn parse_args() -> Result<Option<Args>, String> {
             "--template" => {
                 let t = args.next().ok_or("--template needs a name")?;
                 a.template = CvTemplate::parse(&t).map_err(|e| e.to_string())?;
+            }
+            "--format" => {
+                let f = args
+                    .next()
+                    .ok_or("--format needs a value (pdf|docx|both)")?;
+                a.format = OutputFormat::parse(&f)?;
             }
             "--use-fakes" => a.use_fakes = true,
             "--allow-samples" => a.allow_samples = true,
@@ -189,23 +228,72 @@ fn run() -> Result<(), String> {
     guard(&nodes, &master)
         .map_err(|e| format!("cover-letter evidence guard blocked export: {e}"))?;
 
-    let cv_pdf = renderer
-        .render_cv_watermarked(&view, args.template, watermark)
-        .map_err(|e| format!("render CV (is `typst` available?): {e}"))?;
-    let cover_pdf = renderer
-        .render_cover_letter_watermarked(&letter, watermark)
-        .map_err(|e| format!("render cover letter: {e}"))?;
-
     std::fs::create_dir_all(&args.out)
         .map_err(|e| format!("create {}: {e}", args.out.display()))?;
-    let cv_out = args.out.join(cv_filename(watermark));
-    let cover_out = args.out.join(cover_letter_filename(watermark));
-    std::fs::write(&cv_out, &cv_pdf).map_err(|e| format!("write {}: {e}", cv_out.display()))?;
-    std::fs::write(&cover_out, &cover_pdf)
-        .map_err(|e| format!("write {}: {e}", cover_out.display()))?;
 
-    print_summary(&coverage, watermark, &cv_out, &cover_out);
+    // ── render + write, branching ONLY on the output format (item #10) ───────────
+    // The PDF path is byte-for-byte the pre-#10 behaviour; the docx path authors the
+    // SAME tailored view + letter via aa-docx. `--format both` writes both per document.
+    let mut written: Vec<PathBuf> = Vec::new();
+
+    if args.format.wants_pdf() {
+        let cv_pdf = renderer
+            .render_cv_watermarked(&view, args.template, watermark)
+            .map_err(|e| format!("render CV (is `typst` available?): {e}"))?;
+        let cover_pdf = renderer
+            .render_cover_letter_watermarked(&letter, watermark)
+            .map_err(|e| format!("render cover letter: {e}"))?;
+        written.push(write_doc(
+            &args.out,
+            &cv_filename_ext(watermark, "pdf"),
+            &cv_pdf,
+        )?);
+        written.push(write_doc(
+            &args.out,
+            &cover_letter_filename_ext(watermark, "pdf"),
+            &cover_pdf,
+        )?);
+    }
+
+    if args.format.wants_docx() {
+        let (cv_bytes, cover_bytes) = render_docx(&view, &letter, args.template, watermark)?;
+        written.push(write_doc(
+            &args.out,
+            &cv_filename_ext(watermark, "docx"),
+            &cv_bytes,
+        )?);
+        written.push(write_doc(
+            &args.out,
+            &cover_letter_filename_ext(watermark, "docx"),
+            &cover_bytes,
+        )?);
+    }
+
+    print_summary(&coverage, watermark, &written);
     Ok(())
+}
+
+/// Author the CV + cover letter as DOCX bytes via `aa-docx` (item #10). Pure: consumes
+/// the SAME tailored view + letter the PDF path uses; maps the typed `CoreError` to a
+/// CLI string.
+fn render_docx(
+    view: &TailoredView,
+    letter: &CoverLetter,
+    template: CvTemplate,
+    watermark: bool,
+) -> Result<(Vec<u8>, Vec<u8>), String> {
+    let cv =
+        aa_docx::cv_docx(view, template, watermark).map_err(|e| format!("author CV docx: {e}"))?;
+    let cover = aa_docx::cover_letter_docx(letter, watermark)
+        .map_err(|e| format!("author cover-letter docx: {e}"))?;
+    Ok((cv, cover))
+}
+
+/// Write `bytes` to `<out>/<name>`, returning the path written (for the summary).
+fn write_doc(out: &std::path::Path, name: &str, bytes: &[u8]) -> Result<PathBuf, String> {
+    let path = out.join(name);
+    std::fs::write(&path, bytes).map_err(|e| format!("write {}: {e}", path.display()))?;
+    Ok(path)
 }
 
 /// Strict-then-mine ingestion. Returns the master CV plus the ignored role arrays the
@@ -299,12 +387,7 @@ fn describe_missing(m: MissingFields) -> String {
     v.join(", ")
 }
 
-fn print_summary(
-    coverage: &aa_core::CoverageReport,
-    watermark: bool,
-    cv_out: &std::path::Path,
-    cover_out: &std::path::Path,
-) {
+fn print_summary(coverage: &aa_core::CoverageReport, watermark: bool, written: &[PathBuf]) {
     let must_covered = coverage.must_have.iter().filter(|r| r.covered).count();
     let nice_covered = coverage.nice_to_have.iter().filter(|r| r.covered).count();
     println!("Applicant Advocate — tailored application ready.");
@@ -337,8 +420,13 @@ fn print_summary(
     if !gaps.is_empty() {
         println!("  gaps (must-have):  {}", gaps.join(", "));
     }
-    println!("  wrote:            {}", cv_out.display());
-    println!("                    {}", cover_out.display());
+    let mut iter = written.iter();
+    if let Some(first) = iter.next() {
+        println!("  wrote:            {}", first.display());
+        for p in iter {
+            println!("                    {}", p.display());
+        }
+    }
 }
 
 /// Point the renderer at templates/fonts/typst. In a release bundle these sit next
