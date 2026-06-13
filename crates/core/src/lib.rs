@@ -21,6 +21,7 @@ pub mod ledger;
 pub mod matching;
 pub mod normalize;
 pub mod render;
+pub mod samples;
 pub mod tailor;
 pub mod types;
 
@@ -32,6 +33,10 @@ pub use ledger::{cv_ledger, guard, LedgerNode};
 pub use render::{
     is_valid_pdf, render_cover_letter, render_cv, render_cv_with_template, CoverLetter, CvTemplate,
     Renderer, StrengthParagraph,
+};
+pub use samples::{
+    cover_letter_filename, cv_filename, decide, empty_person, fill_with_samples, ExportDecision,
+    MissingFields, BLOCKED_MESSAGE, SAMPLE_WATERMARK,
 };
 pub use tailor::{pick_summary, requirement_for, tailor, TailoredView, DEFAULT_TOP_N};
 pub use types::{Achievement, CoreError, Experience, MasterCv, Person, Skill};

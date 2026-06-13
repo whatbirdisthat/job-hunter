@@ -148,6 +148,31 @@ pub trait Renderer {
         self.render_cv(view)
     }
     fn render_cover_letter(&self, letter: &CoverLetter) -> Result<Vec<u8>, CoreError>;
+
+    /// Render the CV through a selected template, optionally drawing the SAMPLE
+    /// watermark (item 8b, R-INGEST-CLI-5). ADDITIVE: the default IGNORES `watermark`
+    /// and delegates to [`Renderer::render_cv_with_template`], so existing impls keep
+    /// their behaviour. `CliRenderer` overrides this to thread the `samples` typst input.
+    fn render_cv_watermarked(
+        &self,
+        view: &TailoredView,
+        template: CvTemplate,
+        watermark: bool,
+    ) -> Result<Vec<u8>, CoreError> {
+        let _ = watermark;
+        self.render_cv_with_template(view, template)
+    }
+
+    /// Render the cover letter, optionally drawing the SAMPLE watermark (item 8b).
+    /// ADDITIVE default: ignores `watermark`, delegates to [`Renderer::render_cover_letter`].
+    fn render_cover_letter_watermarked(
+        &self,
+        letter: &CoverLetter,
+        watermark: bool,
+    ) -> Result<Vec<u8>, CoreError> {
+        let _ = watermark;
+        self.render_cover_letter(letter)
+    }
 }
 
 /// Locate the repository root (the dir containing `templates/`) from the crate.
@@ -200,6 +225,27 @@ impl CliRenderer {
     }
 
     fn compile(&self, template_rel: &str, data_json: &str) -> Result<Vec<u8>, CoreError> {
+        self.compile_inner(template_rel, data_json, false)
+    }
+
+    /// Render with the SAMPLE watermark overlay drawn (item 8b). Threads a SECOND typst
+    /// input `samples=true` (the data input is unchanged — the MasterCv schema stays
+    /// immutable, R-INGEST-CLI-5); all three templates draw `[SAMPLE — REPLACE BEFORE
+    /// SENDING]` when that input is truthy.
+    fn compile_watermarked(
+        &self,
+        template_rel: &str,
+        data_json: &str,
+    ) -> Result<Vec<u8>, CoreError> {
+        self.compile_inner(template_rel, data_json, true)
+    }
+
+    fn compile_inner(
+        &self,
+        template_rel: &str,
+        data_json: &str,
+        watermark: bool,
+    ) -> Result<Vec<u8>, CoreError> {
         use std::io::Write;
         // Write the data JSON to a temp file UNDER root so --root resolves it.
         let mut data_path = self.root.clone();
@@ -229,6 +275,14 @@ impl CliRenderer {
             .arg(&out_path)
             .arg("--input")
             .arg(format!("data=/{unique}"))
+            // item 8b: a SECOND input drives the SAMPLE watermark overlay. Always passed
+            // (templates default to "false" when absent) so the two paths differ only in
+            // this one literal — keeping the watermark a render concern, not a data one.
+            .arg("--input")
+            .arg(format!(
+                "samples={}",
+                if watermark { "true" } else { "false" }
+            ))
             .arg("--root")
             .arg(&self.root)
             .arg("--font-path")
@@ -267,6 +321,31 @@ impl Renderer for CliRenderer {
     fn render_cover_letter(&self, letter: &CoverLetter) -> Result<Vec<u8>, CoreError> {
         let json = serde_json::to_string(letter).map_err(|e| CoreError::Render(e.to_string()))?;
         self.compile(LETTER_TEMPLATE_REL, &json)
+    }
+    fn render_cv_watermarked(
+        &self,
+        view: &TailoredView,
+        template: CvTemplate,
+        watermark: bool,
+    ) -> Result<Vec<u8>, CoreError> {
+        let json = view.cv.to_json()?;
+        if watermark {
+            self.compile_watermarked(template.template_rel(), &json)
+        } else {
+            self.compile(template.template_rel(), &json)
+        }
+    }
+    fn render_cover_letter_watermarked(
+        &self,
+        letter: &CoverLetter,
+        watermark: bool,
+    ) -> Result<Vec<u8>, CoreError> {
+        let json = serde_json::to_string(letter).map_err(|e| CoreError::Render(e.to_string()))?;
+        if watermark {
+            self.compile_watermarked(LETTER_TEMPLATE_REL, &json)
+        } else {
+            self.compile(LETTER_TEMPLATE_REL, &json)
+        }
     }
 }
 
@@ -652,5 +731,35 @@ mod tests {
             })
             .unwrap()
             .is_empty());
+    }
+
+    #[test]
+    fn trait_default_watermarked_methods_ignore_the_flag_and_delegate() {
+        // item 8b, R-INGEST-CLI-5: the ADDITIVE watermark defaults must IGNORE `watermark`
+        // and delegate to the non-watermarked methods, so any existing `Renderer` impl
+        // (that does not override them) keeps its behaviour. Pins render.rs 156-175.
+        let view = tailor(&master(), &job(), 3);
+        let r = DefaultSeamRenderer;
+        // both watermark values route to the same delegated `render_cv` output (flag ignored)
+        for wm in [true, false] {
+            assert_eq!(
+                r.render_cv_watermarked(&view, CvTemplate::Classic, wm)
+                    .unwrap(),
+                b"%PDF-default"
+            );
+        }
+        let letter = CoverLetter {
+            greeting: String::new(),
+            why_role: String::new(),
+            strengths: vec![],
+            closing: String::new(),
+            candidate_name: String::new(),
+        };
+        for wm in [true, false] {
+            assert!(r
+                .render_cover_letter_watermarked(&letter, wm)
+                .unwrap()
+                .is_empty());
+        }
     }
 }

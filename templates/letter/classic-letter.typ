@@ -39,7 +39,18 @@
 #let rule  = rgb("#d8d8d8")
 
 #set document(title: "Cover Letter", author: data.at("candidateName", default: ""))
-#set page(paper: "a4", margin: (x: 22pt, y: 26pt))
+// ── item 8b: SAMPLE watermark (see templates/cv/classic.typ for the contract) ──
+#let isSample = sys.inputs.at("samples", default: "false") == "true"
+#let sampleWatermark = "[SAMPLE — REPLACE BEFORE SENDING]"
+#let watermarkBox = if isSample {
+  place(center + horizon, rotate(-30deg, text(
+    size: 40pt, fill: rgb(220, 60, 60, 36), weight: 700,
+  )[#sampleWatermark]))
+}
+#set page(paper: "a4", margin: (x: 22pt, y: 26pt), background: watermarkBox)
+#if isSample {
+  text(size: 7pt, fill: rgb(220, 60, 60))[#sampleWatermark]
+}
 #set text(
   font: ("Liberation Sans", "Helvetica Neue", "Arial", "DejaVu Sans"),
   size: 10.5pt, fill: ink,

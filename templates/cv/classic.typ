@@ -53,7 +53,23 @@
   title: data.person.at("name", default: "Curriculum Vitae"),
   author: data.person.at("name", default: ""),
 )
-#set page(paper: "a4", margin: (x: 14pt, y: 20pt))
+// ── item 8b: SAMPLE watermark ────────────────────────────────────────────────
+// A SECOND input `samples` (default "false") drives a visible, repeated overlay so a
+// sample document cannot be mistaken for a finished one. The text is the exact sentinel
+// `aa_core::samples::SAMPLE_WATERMARK`; a render-level test asserts it is extractable.
+#let isSample = sys.inputs.at("samples", default: "false") == "true"
+#let sampleWatermark = "[SAMPLE — REPLACE BEFORE SENDING]"
+#let watermarkBox = if isSample {
+  place(center + horizon, rotate(-30deg, text(
+    size: 40pt, fill: rgb(220, 60, 60, 36), weight: 700,
+  )[#sampleWatermark]))
+}
+#set page(paper: "a4", margin: (x: 14pt, y: 20pt), background: watermarkBox)
+// Also emit the sentinel once at the top of the flow so text extraction is robust
+// across rotated-background quirks (the guarantee is "the text is present", R-INGEST-CLI-5).
+#if isSample {
+  text(size: 7pt, fill: rgb(220, 60, 60))[#sampleWatermark]
+}
 #set text(
   font: ("Liberation Sans", "Helvetica Neue", "Arial", "DejaVu Sans"),
   size: 10pt, fill: ink,

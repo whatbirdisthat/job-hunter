@@ -1,0 +1,12 @@
+{
+  "_comment": "Item 8b STORY fixture — synthetic, PII-free (no emails; @example only if any). Arbitrary CV-ish JSON the STRICT master-CV parser rejects (no schemaVersion), forcing the adaptive miner. It mines to a CV that HAS a person name + skills but NO work experience — so the missing-field flow triggers on the experience + achievement IMPORTANT classes. The --use-fakes path must then produce a watermarked cv.SAMPLE.pdf, and a normal export must be refused.",
+  "basics": {
+    "name": "Robin Testcase",
+    "label": "Aspiring Engineer",
+    "location": "Synthetic City"
+  },
+  "skills": [
+    { "name": "Problem Solving", "level": 3 },
+    { "name": "Communication", "level": 3 }
+  ]
+}

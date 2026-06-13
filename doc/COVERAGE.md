@@ -8,15 +8,17 @@ reason"). They fall into three classes, all **unreachable on any valid input**:
 
 ## P-COV-1 — Infallible serde-serialize error arms
 `MasterCv::to_json`, `NormalizedJob::to_json` (core `types.rs:142`, `job.rs:39`),
-`render_cover_letter` serialize (`render.rs:146`), and the desktop `seam` serialize/deserialize
+the `render_cover_letter` / `render_cover_letter_watermarked` serialize (`render.rs:322,343`; the
+second arm is the item-8b watermark variant, same class), and the desktop `seam` serialize/deserialize
 (`lib.rs:49,50`). `serde_json::to_string` of an in-memory struct whose fields are only
 `String`/`Vec`/`Option`/number **cannot fail** (no maps with non-string keys, no custom
 `Serialize` that errors). The `.map_err(...)` closure is dead by construction. Kept because the
 methods expose a `Result` API for forward-compatibility (a future field could be fallible).
 
 ## P-COV-2 — Defensive filesystem error closures
-`CliRenderer::compile` write/read error arms and `repo_root`'s `canonicalize` fallback
-(`render.rs:70,108,123,134`). These fire only on transient OS I/O failures (disk full,
+`CliRenderer::compile_inner` write/read error arms and `repo_root`'s `canonicalize` fallback
+(`render.rs:263,265,302,183`; the temp-data-file create + write-data + read-pdf closures and the
+canonicalize fallback). These fire only on transient OS I/O failures (disk full,
 permission race) that cannot be triggered deterministically offline without root-level fault
 injection. The *spawn-failure* and *typst-compile-failure* arms ARE covered
 (`cli_renderer_reports_typst_compile_failure`, `cli_renderer_errors_when_root_missing`).
@@ -256,3 +258,57 @@ The only un-hit fragments remain the **defensive `create_dir_all`/`set_permissio
 closures** (P-COV-2: an injected dir already exists so the create+chmod success path runs, and the
 error arm is a transient-OS-fault closure that cannot be triggered deterministically offline —
 the create-dir failure IS observed via the save-to-an-unwritable-path L4 test). No NEW pragma id.
+
+---
+
+# Coverage policy — item 8b (adaptive CLI ingestion + SAMPLE honesty guard)
+
+**Same floor: 100% of reachable code** (`cargo llvm-cov --workspace --all-targets
+--ignore-filename-regex 'crates/cli/' --summary-only --fail-under-lines 99`). Workspace line
+coverage with item 8b is **99.38%** (above the floor). Item 8b adds the pure decision module
+`crates/core/src/samples.rs`, watermark-threading methods in `crates/core/src/render.rs`, the
+adaptive ingestion + missing-field flow in `crates/cli/src/main.rs` (P-COV-4 excluded), a
+cross-item synonym addition in `crates/cvimport/src/mine_json.rs` (DISCUSS-8b-1), the new render
+templates' watermark overlay, and two new test targets + a tracked STORY baseline.
+
+## `crates/core/src/samples.rs` — 100% lines, regions AND functions, NO new pragma
+The load-bearing SAMPLE-guard logic is a pure module with no infallible-serialize or defensive-IO
+arms, so every branch is reachable from a real input. The L1 in-module tests carry the burden:
+`decide()`'s full truth table (no-samples→RenderNormal for BOTH flag values, samples+no-allow→
+Blocked, samples+allow→RenderWithWatermark); the `ExportDecision::{renders,is_sample}` predicates;
+`cv_filename`/`cover_letter_filename` for both sample-ness; `MissingFields::any`; and
+`fill_with_samples` for every IMPORTANT class — name, whole-experience synthesis (real synthetic
+ids `imp_exp_0`/`imp_exp_0_b0`), achievement-attach-to-existing, the **no-experience-to-attach-to
+fail-CLOSED arm** (returns `used_samples=false`, inserts nothing), skill, the all-classes case, and
+the nothing-missing no-op. The watermark sentinel + blocked-message wording are pinned to exact
+strings (a safety message must not silently drift). **No `P-COV-8b-N` pragma was required.**
+
+## `crates/core/src/render.rs` — item-8b watermark additions, existing P-COV-1/P-COV-2 classes only
+`compile_inner` threads a SECOND typst `--input samples=<bool>` (the normal path passes `false`,
+which is byte-identical to the pre-8b render — verified). `render_cv_watermarked` /
+`render_cover_letter_watermarked` (the `CliRenderer` overrides) ARE covered by the L-render
+integration tests in `crates/core/tests/watermark_render.rs` (sample-present + normal-absent, both
+directions, classic + compact + letter, via `pdf-extract`). The **trait-default** watermark methods
+(`render.rs:156-175`, the ADDITIVE delegate-and-ignore arms) are pinned by
+`trait_default_watermarked_methods_ignore_the_flag_and_delegate`. The only un-hit render.rs
+fragments remain the SAME P-COV-1 (serialize) + P-COV-2 (defensive IO) closures already documented
+above and the P-COV-3 feature-gated embedded module — item 8b introduces **no new pragma id**.
+
+## `crates/cvimport/src/mine_json.rs` — DISCUSS-8b-1 synonym addition, stays 100%
+`extract_person` gains the real-DW_CV contact synonyms `emailAddress`/`mail`/`e-mail` and
+`phoneNumber`/`mobile`/`tel`/`telephone` (appended AFTER `email`/`phone`, so no existing fixture
+changes which field it picks — key-match is exact case-insensitive equality, not substring). Pinned
+by `dwcv_email_address_and_phone_number_synonyms_survive`. `mine_json.rs` remains **100% lines**;
+the 8a STORY stays byte-identical. (Rationale: the real DW_CV keys contact as `EmailAddress`/
+`PhoneNumber`, distinct WORDS from `email`/`phone`, so case-insensitivity alone dropped them — the
+item-8b acceptance requires email/experience intact.)
+
+## What IS covered to 100% (reachable) — item 8b
+The whole SAMPLE-guard decision surface and watermark render path. The CLI binary (`main.rs`:
+strict-then-mine `ingest`, `resolve_gaps`, the single `decide()` gate, interactive prompting, output
+naming) is the **P-COV-4** excluded entrypoint — its end-to-end behaviour is proven by the L5 STORY
+`crates/cli/tests/ingestion_story_l5.rs` (mine a synthetic gap-having JSON → `--use-fakes` →
+watermarked `cv.SAMPLE.pdf` produced and the watermark text extracted from it; normal export refused
+without the flag), perf-delta gated against the NEW TRACKED baseline
+`doc/perf/cli-ingestion-story-baseline.txt` (`0.400000`s ≈ 4× the ~0.10s observed steady-state —
+its own baseline, not a shared one, so the 3×-delta arm is non-vacuous).
