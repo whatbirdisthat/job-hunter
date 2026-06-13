@@ -233,10 +233,11 @@ bulleted strengths each ending `[evidence: id]` → closing).
   Adversarial reviewer (CORRECTNESS / REGRESSION / ARCHITECTURE / LICENSING) **PASS** — no
   CRITICAL/HIGH/MEDIUM. Synthetic PII-free fixtures only. EARS `R-DOCX-*`.
 
-## LATER
+## ON HOLD
 
-### 7. Encryption-at-rest storage (DISCUSS-STORAGE, from #5) · PRIORITY: LATER (demoted below 8–10)
-Swap the plaintext `JsonFileStore` for an **encrypted-at-rest** local store behind the EXISTING
+### 7. Encryption-at-rest storage (DISCUSS-STORAGE, from #5) · STATUS: HOLD (de-scheduled)
+De-scheduled by the project owner — **not** on the active build queue. Resume only on an explicit
+decision. Swap the plaintext `JsonFileStore` for an **encrypted-at-rest** local store behind the EXISTING
 `TrackerStore` seam — SQLite + SQLCipher (or, if unavailable in-mirror, an AEAD file store:
 XChaCha20-Poly1305 + Argon2id from a user passphrase, recorded as the decision). The `crates/tracker`
 pure cores stay IO-free; only the store impl under `apps/desktop/src-tauri` changes. Never log/persist
