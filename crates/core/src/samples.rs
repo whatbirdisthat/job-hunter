@@ -111,11 +111,34 @@ pub fn decide(used_samples: bool, allow_samples: bool) -> ExportDecision {
 /// in the coverage-excluded binary.
 pub const BLOCKED_MESSAGE: &str = "output contains SAMPLE data; fix it or pass --allow-samples";
 
+/// CV output filename for a given sample-ness and extension (item #10). Sample output
+/// gets a `.SAMPLE.` infix, e.g. `cv.SAMPLE.docx`; a clean CV is `cv.<ext>`.
+pub fn cv_filename_ext(contains_samples: bool, ext: &str) -> String {
+    if contains_samples {
+        format!("cv.SAMPLE.{ext}")
+    } else {
+        format!("cv.{ext}")
+    }
+}
+
+/// Cover-letter output filename for a given sample-ness and extension (item #10).
+pub fn cover_letter_filename_ext(contains_samples: bool, ext: &str) -> String {
+    if contains_samples {
+        format!("cover-letter.SAMPLE.{ext}")
+    } else {
+        format!("cover-letter.{ext}")
+    }
+}
+
 /// CV output filename for a given sample-ness. Sample output is `cv.SAMPLE.pdf`.
+/// Returns `&'static str` (the original item-8b contract); backed by the format-aware
+/// [`cv_filename_ext`] so the two can never diverge on the `.pdf` value.
 pub fn cv_filename(contains_samples: bool) -> &'static str {
     if contains_samples {
+        debug_assert_eq!(cv_filename_ext(true, "pdf"), "cv.SAMPLE.pdf");
         "cv.SAMPLE.pdf"
     } else {
+        debug_assert_eq!(cv_filename_ext(false, "pdf"), "cv.pdf");
         "cv.pdf"
     }
 }
@@ -123,8 +146,13 @@ pub fn cv_filename(contains_samples: bool) -> &'static str {
 /// Cover-letter output filename for a given sample-ness.
 pub fn cover_letter_filename(contains_samples: bool) -> &'static str {
     if contains_samples {
+        debug_assert_eq!(
+            cover_letter_filename_ext(true, "pdf"),
+            "cover-letter.SAMPLE.pdf"
+        );
         "cover-letter.SAMPLE.pdf"
     } else {
+        debug_assert_eq!(cover_letter_filename_ext(false, "pdf"), "cover-letter.pdf");
         "cover-letter.pdf"
     }
 }
@@ -277,6 +305,47 @@ mod tests {
         assert_eq!(cv_filename(true), "cv.SAMPLE.pdf");
         assert_eq!(cover_letter_filename(false), "cover-letter.pdf");
         assert_eq!(cover_letter_filename(true), "cover-letter.SAMPLE.pdf");
+    }
+
+    // ── item #10: format-aware filename helpers (pdf/docx × normal/sample) ─────────
+    #[test]
+    fn cv_filename_ext_switches_on_sampleness_and_extension() {
+        assert_eq!(cv_filename_ext(false, "pdf"), "cv.pdf");
+        assert_eq!(cv_filename_ext(true, "pdf"), "cv.SAMPLE.pdf");
+        assert_eq!(cv_filename_ext(false, "docx"), "cv.docx");
+        assert_eq!(cv_filename_ext(true, "docx"), "cv.SAMPLE.docx");
+    }
+
+    #[test]
+    fn cover_letter_filename_ext_switches_on_sampleness_and_extension() {
+        assert_eq!(cover_letter_filename_ext(false, "pdf"), "cover-letter.pdf");
+        assert_eq!(
+            cover_letter_filename_ext(true, "pdf"),
+            "cover-letter.SAMPLE.pdf"
+        );
+        assert_eq!(
+            cover_letter_filename_ext(false, "docx"),
+            "cover-letter.docx"
+        );
+        assert_eq!(
+            cover_letter_filename_ext(true, "docx"),
+            "cover-letter.SAMPLE.docx"
+        );
+    }
+
+    #[test]
+    fn static_pdf_helpers_agree_with_ext_helpers() {
+        // The &'static str helpers must equal the format-aware ones for "pdf".
+        assert_eq!(cv_filename(false), cv_filename_ext(false, "pdf"));
+        assert_eq!(cv_filename(true), cv_filename_ext(true, "pdf"));
+        assert_eq!(
+            cover_letter_filename(false),
+            cover_letter_filename_ext(false, "pdf")
+        );
+        assert_eq!(
+            cover_letter_filename(true),
+            cover_letter_filename_ext(true, "pdf")
+        );
     }
 
     // ── MissingFields ─────────────────────────────────────────────────────────────

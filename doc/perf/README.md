@@ -16,6 +16,7 @@ gitignored `target/` file, which self-ratcheted and made the delta arm vacuous).
 | `desktop-tracker-story-baseline.txt` | `apps/desktop/src-tauri/tests/tracker_story_l5.rs` (item #5 tracker journey: track → advance → call-sheet) |
 | `desktop-templates-ats-story-baseline.txt` | `apps/desktop/src-tauri/tests/templates_ats_story_l5.rs` (item #6 journey: pick Compact → export → ats_report → keyword_coverage) |
 | `cli-ingestion-story-baseline.txt` | `crates/cli/tests/ingestion_story_l5.rs` (item 8b journey: strict-then-mine → `--use-fakes` → watermarked `cv.SAMPLE.pdf`; normal export refused without the flag) |
+| `cli-docx-output-story-baseline.txt` | `crates/cli/tests/docx_output_story_l5.rs` (item #10 journey: complete persona → `--format both` writes openable `cv.docx`+`cover-letter.docx` alongside the PDFs; `--format docx` selects docx-only) |
 
 Each file holds a single number: the baseline wall-clock in seconds. The gate enforces TWO
 independent obligations (see `crates/cvimport/tests/perf_gate.rs`):
@@ -61,6 +62,16 @@ from the import-story baseline, whose PDF/DOCX render+extract journey is orders 
 slower, which would make the delta arm vacuous). At `0.075000` the 3×-delta arm fires at 0.225 s,
 so a real multi-hundred-ms regression FAILS while the 0.022 s steady-state passes with headroom;
 the 60 s absolute budget remains the hard ceiling.
+
+The item-#10 docx-output journey runs the binary TWICE (`--format both`, then `--format docx`):
+the dominant cost is the two typst PDF renders in the `both` run plus the two `aa-docx` ZIP
+authorings across both runs, so its **observed steady-state is ~0.09 s** (measured 3× via
+`cargo test -p aa-cli --test docx_output_story_l5 -- --nocapture`: 0.094 / 0.092 / 0.088 s). Its
+baseline is **`0.350000`** (≈3.7× the observed steady-state, per the rule above — NOT copied from
+the `cli-ingestion-story-baseline.txt` value, which would be too loose for this faster journey and
+make the delta arm vacuous). At `0.350000` the 3×-delta arm fires at 1.050 s, so a real
+multi-hundred-ms regression FAILS while the ~0.09 s steady-state passes with headroom; the 60 s
+absolute budget remains the hard ceiling.
 
 The item-#5 tracker journey is pure in-memory cores + a tiny atomic JSON file write (no typst
 render), so its **observed steady-state is ~0.001 s** (measured 3× via

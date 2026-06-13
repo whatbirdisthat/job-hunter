@@ -312,3 +312,36 @@ watermarked `cv.SAMPLE.pdf` produced and the watermark text extracted from it; n
 without the flag), perf-delta gated against the NEW TRACKED baseline
 `doc/perf/cli-ingestion-story-baseline.txt` (`0.400000`s ≈ 4× the ~0.10s observed steady-state —
 its own baseline, not a shared one, so the 3×-delta arm is non-vacuous).
+
+---
+
+# Coverage policy — item #10 (`crates/docx`, pure DOCX authoring)
+
+**Same floor: 100% of reachable code** (`cargo llvm-cov --workspace --all-targets
+--ignore-filename-regex 'crates/cli/' --summary-only --fail-under-lines 99`). `crates/docx/src/lib.rs`
+is at the **100%-of-reachable-lines** floor: every emitted-paragraph branch of `cv_docx` /
+`cover_letter_docx` / `contact_line` is exercised by the in-crate L1 tests and the L2 boundary target
+(`tests/module_l2.rs`). The only residual sub-line *region* miss is the single defensive-IO closure
+below — the **same P-COV-2 class** as slice-1; **no new pragma id** is introduced.
+
+## P-COV-2 (docx) — Infallible in-memory pack error closure
+`lib.rs` `pack`: `docx.build().pack(&mut buf).map_err(|e| CoreError::Render(e.to_string()))?`. The
+writer is an in-memory `Cursor<Vec<u8>>`, so packing a *successfully-built* `Docx` cannot return an
+I/O error (the only failure mode would be allocation/OOM, which aborts rather than returning `Err`).
+The `.map_err(...)` closure is dead by construction — exactly the slice-1 P-COV-2 "defensive
+filesystem error closure" class, here over an in-memory sink. Kept so `pack` exposes a total
+`Result<_, CoreError::Render>` surface matching the typst render path (`render.rs`); a future
+disk-backed writer would make it live without an API change.
+
+## What IS covered to 100% (reachable) — item #10
+Every emitted branch: the watermark-first paragraph (both functions), the name-present / name-absent
+arms, the professional-title present-non-empty / **present-but-empty** (`Some("")`) / absent arms, the
+`contact_line` present-join / all-empty-`None` / empty-field-filter arms, every skill section
+(non-empty emit + empty-skip), the `"Experience"` heading, and per-experience: the **`hide`-flag skip**
+(`continue` — reached by a hand-built `TailoredView` with an injected hidden experience, since
+`tailor` strips hidden roles, asserting the hidden jobTitle is absent from the extracted document
+text), the `endDate` present-non-empty / **empty-`Some("")`** / **absent-`None`** suffix arms, the
+`location` present-non-empty / **empty-`Some("")`** / **absent-`None`** suffix arms, and the
+achievement loop. The cover-letter path covers the empty-vs-present candidate-name arm and the
+per-strength evidence-id bullet. The anti-drift heading contract is pinned by
+`every_skill_label_is_in_the_heading_vocabulary` (every emitted label ∈ `heading_vocabulary()`).
