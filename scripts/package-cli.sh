@@ -5,9 +5,14 @@
 # Node.js, or typst installed: a statically-linked (musl) binary + the bundled
 # `typst` renderer + templates + Liberation fonts + a synthetic sample.
 #
-# Build-host requirements: cargo, rustup, and `typst` on PATH.
+# Build-host requirements: cargo, rustup, `typst` on PATH, and the musl C toolchain
+# (`musl-tools` → x86_64-linux-musl-gcc) which the `zip`/`docx-rs` deps need to
+# cross-compile the static musl target. On Debian/Ubuntu: `sudo apt-get install -y musl-tools`.
 # Usage:  scripts/package-cli.sh [version]   (run from the repo root)
 set -euo pipefail
+
+command -v x86_64-linux-musl-gcc >/dev/null 2>&1 || {
+  echo "error: x86_64-linux-musl-gcc not found — install the musl toolchain (e.g. 'sudo apt-get install -y musl-tools')"; exit 1; }
 
 VER="${1:-0.1.0}"
 TARGET="x86_64-unknown-linux-musl"
