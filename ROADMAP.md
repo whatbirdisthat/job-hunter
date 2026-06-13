@@ -173,19 +173,38 @@ the COVERAGE.md re-sync). **DISCUSS-8b-1** (real-DW_CV `EmailAddress`/`PhoneNumb
 added to the 8a miner so email survives) resolved; **DISCUSS-8b-2** (no real DW_CV in-repo — PII bar;
 the real-CV run is a manual /tmp acceptance, NOT a committed test) recorded.
 
+### 9. One-page cover letter ✅ (branch `item-9-one-page-letter`)
+The cover letter rendered to 3–4 pages (root cause: `build_cover_letter` emitted up to 3 FULL verbatim
+achievement descriptions of arbitrary length + the template had an 18pt header, loose spacing, and no
+page bound). Fixed BOTH content and template so it reliably fits ONE A4 page and reads as ~4 paragraphs.
+- **Content budget in `build_cover_letter` (crates/core/src/lib.rs):** a private, unicode-safe
+  `truncate_ellipsis(s, max_chars)` helper (word-boundary cut, single U+2026 ellipsis only when cut,
+  char-counted not byte-counted, panic-free) bounds each of the **≤3 strengths to ≤200 chars** and the
+  templated **`whyRole` to ≤300 chars**. Evidence ids are untouched (only `text` is truncated) — the
+  §E evidence-ledger guard still holds. No invented text (truncation of existing evidence only),
+  deterministic (no clock/rng/locale).
+- **Template (`templates/letter/classic-letter.typ`):** name header 18pt → **14pt**, tighter
+  leading/spacing (`0.7em`/`9pt` → `0.55em`/`6pt`, blocks `8pt` → `6pt`), strengths rendered as a
+  **compact bulleted `#list`** (each bullet keeps its faint `[evidence: id]` tag). The item-8b SAMPLE
+  watermark behaviour is **byte-intact** (regression-pinned). Stays CLI-renderable.
+- **Deterministic page-count==1 test** (`crates/core/tests/cover_letter_one_page.rs`): counts PDF pages
+  structurally via the page tree (`lopdf::Document::load_mem(..).get_pages().len()`, NOT pdfinfo). lopdf
+  was already in `Cargo.lock` transitively via `pdf-extract`, so the dev-dep adds **no new vendored
+  crate**. Cases: (a) normal persona+job → 1 page; (b) a **long-content fixture** (100+ char name,
+  4×~520-char descriptions) → still 1 page with truncation proven to fire; (c) the watermarked letter →
+  still 1 page; and (d) a **non-vacuous load-bearing coordinate** — the SAME ~2600-char content renders
+  to **≥2 pages raw** (built directly) but **==1 page budgeted** (through `build_cover_letter`), so the
+  test FAILS if `truncate_ellipsis` is removed (empirically verified).
+- Full L1–L5; fmt + clippy `-D warnings`; `cargo test --workspace` green; 100%-of-reachable coverage
+  (workspace 99.34% lines, no new pragmas); synthetic PII-free fixtures only. Adversarial reviewer panel
+  (CORRECTNESS / REGRESSION / PERFORMANCE / SECURITY) **PASS** after closing one MEDIUM test-non-vacuity
+  finding. EARS `R-CL-*`.
+
 ## TODO (being built, in order — one PR per item)
 
 > Robustness drive so the tool works on real CVs. Prompted by the `applicant-advocate` CLI failing on
 > a real DW_CV `cv.json` (UTF-8 BOM + legacy PascalCase schema). The BOM half shipped as a hotfix
 > (PR #10); the rest is below. Plan + adversarial review: `doc/idea/applicant-advocate/` lineage.
-
-### 9. One-page cover letter · PRIORITY: HIGH
-Fix the 4-page cover letter (root cause: up to 3 full verbatim achievement descriptions + an 18pt
-header + loose spacing, no page bound). Pin a content budget in `build_cover_letter` (≤3 strengths,
-each truncated to ≤200 chars; bound `whyRole`; render as a compact bulleted list, keep evidence ids)
-and tighten `templates/letter/classic-letter.typ` (~14pt header, tighter spacing; lists/tables
-allowed). **Deterministic page-count==1 test** by parsing the produced PDF in Rust (count `/Type /Page`
-via the vendored `lopdf`/`pdf-extract`), incl. a **long-content fixture**. Evidence-guard holds. EARS `R-CL-*`.
 
 ### 10. DOCX output (CV + cover letter) · PRIORITY: HIGH
 New crate `crates/docx` (`aa-docx` → `aa-core`) hand-authoring `.docx` via `docx-rs` (dev-dep → runtime;

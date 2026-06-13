@@ -33,3 +33,10 @@ typst-as-lib = { version = "0.15", optional = true }
 # absent from a normal one) — the non-vacuity of the watermark guarantee. Same version
 # as crates/cvimport already vendors, so no new lockfile entry beyond the dev edge.
 pdf-extract = "0.10"
+# item 9: deterministic page-count == 1 assertion. Counts PDF pages via the PDF page
+# tree (lopdf), not an external tool. Already in Cargo.lock transitively via pdf-extract,
+# so adding it as a dev-dep vendors NO new crate. `default-features = false` keeps it to
+# the exact feature set pdf-extract already resolved (the page tree + decode path); the
+# default `chrono`/`jiff`/`time` PDF-metadata date features are unused here and would
+# otherwise pull in new lockfile entries.
+lopdf = { version = "0.38", default-features = false }

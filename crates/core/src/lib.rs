@@ -49,9 +49,46 @@ pub struct ApplicationExport {
     pub view: TailoredView,
 }
 
+/// Content budget that keeps the cover letter to a single A4 page (item #9): the
+/// maximum number of strength paragraphs, and the per-field char caps. Tuned with
+/// the tightened `classic-letter.typ` so even hostile (very long) input fits one page.
+const MAX_STRENGTHS: usize = 3;
+const STRENGTH_MAX_CHARS: usize = 200;
+const WHY_ROLE_MAX_CHARS: usize = 300;
+
+/// Truncate `s` to at most `max_chars` CHARACTERS (not bytes — unicode-safe), word-aware.
+///
+/// - If `s` already fits (`chars().count() <= max_chars`), it is returned unchanged
+///   with NO ellipsis appended.
+/// - Otherwise the prefix is cut so the result INCLUDING the trailing `…` (U+2026,
+///   one char) is within `max_chars`. The cut is pulled back to the last whitespace
+///   boundary inside the window so a word is never split; if the window has no
+///   whitespace it is a hard cut. Trailing whitespace before the ellipsis is trimmed.
+///
+/// Deterministic and panic-free for any input (no indexing, no unwrap).
+fn truncate_ellipsis(s: &str, max_chars: usize) -> String {
+    if s.chars().count() <= max_chars {
+        return s.to_string();
+    }
+    // Reserve one char for the ellipsis. If the budget is a single char, the result
+    // is just the ellipsis (no room for any body).
+    let body_budget = max_chars.saturating_sub(1);
+    let window: String = s.chars().take(body_budget).collect();
+    // Pull back to the last whitespace boundary so we don't split a word; if there
+    // is no whitespace in the window, hard-cut the whole window.
+    let cut = match window.rfind(char::is_whitespace) {
+        Some(idx) => &window[..idx],
+        None => &window,
+    };
+    let mut out = cut.trim_end().to_string();
+    out.push('…');
+    out
+}
+
 /// Build a cover letter (§G) from a tailored view + job. Greeting/why-role are
-/// scaffold (templated from job fields); 2–3 strength paragraphs each wrap one of
-/// the top selected achievements, carrying its evidence id.
+/// scaffold (templated from job fields); up to 3 strength paragraphs each wrap one
+/// of the top selected achievements, carrying its evidence id. Each strength text and
+/// the why-role are bounded (item #9 content budget) so the letter is one A4 page.
 pub fn build_cover_letter(
     view: &TailoredView,
     job: &NormalizedJob,
@@ -69,27 +106,36 @@ pub fn build_cover_letter(
         job.title.clone()
     };
 
-    // top strengths: first up-to-3 selected achievements, resolved from the view
+    // top strengths: first up-to-MAX_STRENGTHS selected achievements, resolved from
+    // the view. Each description is truncated to the content budget (word-boundary
+    // ellipsis) so the rendered bullets fit one page; the evidence id is untouched.
     let mut strengths = Vec::new();
     'outer: for e in &view.cv.experience {
         for a in &e.achievements_tasks {
             strengths.push(StrengthParagraph {
-                text: a.description.clone(),
+                text: truncate_ellipsis(&a.description, STRENGTH_MAX_CHARS),
                 source_evidence_id: a.id.clone(),
             });
-            if strengths.len() >= 3 {
+            if strengths.len() >= MAX_STRENGTHS {
                 break 'outer;
             }
         }
     }
 
+    // why-role: one concise sentence naming the role + company. Defensively bounded
+    // so a pathological role/company string can't push the letter to a second page.
+    let why_role = truncate_ellipsis(
+        &format!("I'm writing to apply for the {role} position at {company}, where my track record maps directly to what you're looking for."),
+        WHY_ROLE_MAX_CHARS,
+    );
+
     CoverLetter {
         greeting: "Dear Hiring Team,".to_string(),
-        why_role: format!(
-            "I'm writing to apply for the {role} position at {company}. My background maps directly to what you're looking for, and the highlights below are drawn verbatim from my track record."
-        ),
+        why_role,
         strengths,
-        closing: format!("I would welcome the chance to discuss further.\n\nKind regards,\n{candidate}"),
+        closing: format!(
+            "I would welcome the chance to discuss further.\n\nKind regards,\n{candidate}"
+        ),
         candidate_name: candidate,
     }
 }
@@ -245,6 +291,157 @@ mod module_tests {
         assert!(!letter.strengths.is_empty() && letter.strengths.len() <= 3);
         for s in &letter.strengths {
             assert!(!s.source_evidence_id.is_empty());
+        }
+    }
+
+    #[test]
+    fn cover_letter_strengths_are_truncated_to_budget() {
+        // item #9: every strength text is kept within the 200-char budget so the
+        // letter stays one page. A view whose achievement descriptions exceed the
+        // budget must come back truncated with an ellipsis, evidence id intact.
+        let long = "word ".repeat(80); // 400 chars, well over 200
+        let doc = format!(
+            r#"{{"schemaVersion":"1.0.0","person":{{"name":"X"}},"experience":[
+                {{"id":"e0","jobTitle":"T","businessName":"B","startDate":"Jan 2020",
+                 "tags":["caching"],
+                 "achievementsTasks":[{{"id":"e0_b0","description":"{long}"}}]}}]}}"#
+        );
+        let m = MasterCv::from_json(&doc).unwrap();
+        let j = NormalizedJob {
+            title: "T".into(),
+            company: "C".into(),
+            location: String::new(),
+            responsibilities: vec![],
+            requirements: Requirements {
+                must_have: vec!["caching".into()],
+                nice_to_have: vec![],
+            },
+            keywords: vec![],
+        };
+        let view = tailor(&m, &j, DEFAULT_TOP_N);
+        let letter = build_cover_letter(&view, &j, &m);
+        assert!(!letter.strengths.is_empty());
+        for s in &letter.strengths {
+            assert!(
+                s.text.chars().count() <= 200,
+                "strength over budget: {} chars",
+                s.text.chars().count()
+            );
+            assert!(
+                s.text.ends_with('…'),
+                "truncated text must end with ellipsis"
+            );
+            assert!(!s.source_evidence_id.is_empty());
+        }
+    }
+
+    #[test]
+    fn cover_letter_why_role_is_bounded() {
+        // A pathological role/company string cannot blow the why_role budget.
+        let m = master();
+        let huge = "Z".repeat(5000);
+        let j = NormalizedJob {
+            title: huge.clone(),
+            company: huge,
+            location: String::new(),
+            responsibilities: vec![],
+            requirements: Requirements {
+                must_have: vec![],
+                nice_to_have: vec![],
+            },
+            keywords: vec![],
+        };
+        let view = tailor(&m, &j, DEFAULT_TOP_N);
+        let letter = build_cover_letter(&view, &j, &m);
+        assert!(
+            letter.why_role.chars().count() <= 300,
+            "why_role over budget: {} chars",
+            letter.why_role.chars().count()
+        );
+    }
+}
+
+#[cfg(test)]
+mod truncate_tests {
+    //! L1 — the `truncate_ellipsis` helper (item #9 content budget). Char-based,
+    //! word-boundary, unicode-safe, never panics, result always within the budget.
+    use super::truncate_ellipsis;
+
+    #[test]
+    fn empty_is_unchanged() {
+        assert_eq!(truncate_ellipsis("", 200), "");
+    }
+
+    #[test]
+    fn short_is_unchanged_without_ellipsis() {
+        let s = "a short strength sentence";
+        assert_eq!(truncate_ellipsis(s, 200), s);
+        assert!(!truncate_ellipsis(s, 200).ends_with('…'));
+    }
+
+    #[test]
+    fn exactly_at_max_is_unchanged() {
+        let s = "a".repeat(200);
+        assert_eq!(truncate_ellipsis(&s, 200), s);
+        assert!(!truncate_ellipsis(&s, 200).ends_with('…'));
+    }
+
+    #[test]
+    fn over_max_truncates_with_ellipsis_on_word_boundary() {
+        // 201 chars made of words → cut to a whitespace boundary, trailing space
+        // trimmed, single ellipsis appended, result within budget.
+        let s = "word ".repeat(60); // 300 chars
+        let out = truncate_ellipsis(&s, 200);
+        assert!(out.chars().count() <= 200);
+        assert!(out.ends_with('…'));
+        // must not split a word: the char before the ellipsis is a word char (we
+        // trimmed trailing whitespace), and there is no broken partial token.
+        let body = out.trim_end_matches('…');
+        assert!(
+            body.ends_with("word"),
+            "cut on a word boundary, got: {body:?}"
+        );
+    }
+
+    #[test]
+    fn unicode_counts_chars_not_bytes_and_never_breaks_a_char() {
+        // multi-byte chars (é is 2 bytes, 😀 is 4) — budget is in CHARS.
+        let s = "é".repeat(500); // 500 chars, 1000 bytes
+        let out = truncate_ellipsis(&s, 200);
+        assert!(out.chars().count() <= 200);
+        assert!(out.ends_with('…'));
+        // round-trips as valid UTF-8 (no broken char) — String guarantees it, but
+        // assert the body is all 'é' (no mojibake / partial code unit).
+        let body = out.trim_end_matches('…');
+        assert!(body.chars().all(|c| c == 'é'));
+    }
+
+    #[test]
+    fn no_whitespace_long_string_is_hard_cut() {
+        // no whitespace in the window → hard-cut at the budget, ellipsis appended.
+        let s = "a".repeat(500);
+        let out = truncate_ellipsis(&s, 200);
+        assert_eq!(out.chars().count(), 200);
+        assert!(out.ends_with('…'));
+        assert!(out.trim_end_matches('…').chars().all(|c| c == 'a'));
+    }
+
+    #[test]
+    fn result_char_count_never_exceeds_max() {
+        for max in [1usize, 2, 5, 10, 200, 300] {
+            for s in [
+                "",
+                "x",
+                "hello world",
+                &"y".repeat(1000),
+                &"z z ".repeat(400),
+            ] {
+                assert!(
+                    truncate_ellipsis(s, max).chars().count() <= max,
+                    "max={max} s.len={}",
+                    s.len()
+                );
+            }
         }
     }
 }
