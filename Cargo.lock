@@ -18,13 +18,17 @@ name = "aa-cli"
 version = "0.1.0"
 dependencies = [
  "aa-core",
+ "aa-cvimport",
  "aa-jobparse",
+ "pdf-extract",
+ "serde_json",
 ]
 
 [[package]]
 name = "aa-core"
 version = "0.1.0"
 dependencies = [
+ "pdf-extract",
  "serde",
  "serde_json",
  "thiserror",

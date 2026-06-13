@@ -161,8 +161,12 @@ fn extract_person(src: &Value, root: &Value) -> Person {
         professional_title: pick(&["professionalTitle", "title", "headline", "role", "label"]),
         professional_description: pick(&["professionalDescription", "summary", "about", "bio"]),
         location: pick(&["location"]),
-        email: pick(&["email"]),
-        phone: pick(&["phone"]),
+        // item 8b regression (DISCUSS-8b-1): the real DW_CV keys contact as PascalCase
+        // `EmailAddress` / `PhoneNumber`. Key-match is case-insensitive, but `email` ≠
+        // `emailaddress`, so these synonyms must be listed explicitly or the top-level
+        // contact block is silently dropped (acceptance requires email intact).
+        email: pick(&["email", "emailAddress", "mail", "e-mail"]),
+        phone: pick(&["phone", "phoneNumber", "mobile", "tel", "telephone"]),
         linkedin: pick(&["linkedin"]),
         github: pick(&["github"]),
         website: pick(&["website", "url"]),
@@ -538,6 +542,21 @@ mod tests {
         assert_eq!(cv.person.name.as_deref(), Some("Dana"));
         assert_eq!(cv.person.email.as_deref(), Some("d@example.com"));
         assert_eq!(cv.person.linkedin.as_deref(), Some("https://l.example"));
+    }
+
+    #[test]
+    fn dwcv_email_address_and_phone_number_synonyms_survive() {
+        // DISCUSS-8b-1 regression: the REAL DW_CV keys contact as `EmailAddress` /
+        // `PhoneNumber` (distinct WORDS from `email`/`phone`, so case-insensitivity alone
+        // does not catch them). Item 8b's acceptance requires email intact — these
+        // synonyms must be recognised so the top-level contact block is not dropped.
+        let cv = mine(json!({
+            "Name": "Dana",
+            "EmailAddress": "dana@example.com",
+            "PhoneNumber": "+64 21 555 0100"
+        }));
+        assert_eq!(cv.person.email.as_deref(), Some("dana@example.com"));
+        assert_eq!(cv.person.phone.as_deref(), Some("+64 21 555 0100"));
     }
 
     #[test]

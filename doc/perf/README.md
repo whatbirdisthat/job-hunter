@@ -15,6 +15,7 @@ gitignored `target/` file, which self-ratcheted and made the delta arm vacuous).
 | `capture-email-story-baseline.txt` | `packages/capture-core/test/story.test.mjs` (item #4 email→jobs journey, `node --test`) |
 | `desktop-tracker-story-baseline.txt` | `apps/desktop/src-tauri/tests/tracker_story_l5.rs` (item #5 tracker journey: track → advance → call-sheet) |
 | `desktop-templates-ats-story-baseline.txt` | `apps/desktop/src-tauri/tests/templates_ats_story_l5.rs` (item #6 journey: pick Compact → export → ats_report → keyword_coverage) |
+| `cli-ingestion-story-baseline.txt` | `crates/cli/tests/ingestion_story_l5.rs` (item 8b journey: strict-then-mine → `--use-fakes` → watermarked `cv.SAMPLE.pdf`; normal export refused without the flag) |
 
 Each file holds a single number: the baseline wall-clock in seconds. The gate enforces TWO
 independent obligations (see `crates/cvimport/tests/perf_gate.rs`):

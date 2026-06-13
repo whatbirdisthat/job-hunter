@@ -29,3 +29,7 @@ typst-pdf = { version = "0.14", optional = true }
 typst-as-lib = { version = "0.15", optional = true }
 
 [dev-dependencies]
+# item 8b: assert the SAMPLE watermark TEXT is extractable from a rendered PDF (and
+# absent from a normal one) — the non-vacuity of the watermark guarantee. Same version
+# as crates/cvimport already vendors, so no new lockfile entry beyond the dev edge.
+pdf-extract = "0.10"

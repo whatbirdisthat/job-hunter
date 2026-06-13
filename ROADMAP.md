@@ -146,23 +146,38 @@ REGRESSION/COVERAGE). DISCUSS-8a-1/2/3 resolved per plan; DISCUSS-8a-4 (`work[].
 lowest-priority businessName synonym, scoped to role-array elements) ratified. The completeness report
 is what item 8b's CLI consumes.
 
+### 8b. Adaptive CV ingestion — CLI flow + sample-data system (structural honesty guard) ✅ (branch `item-8b-cli-ingestion`)
+Wired 8a into the CLI: strict `MasterCv::from_json` first; **on parse failure → `import_cv_json` (mine)**;
+then `completeness()` → on any empty IMPORTANT class (or strict-success-with-gaps), the missing-field
+flow. **Safe by construction (the load-bearing requirement):** interactive default per gap = **leave
+blank/omit** (NOT fake); `[s]` per field inserts a clearly-labelled SAMPLE value; `--use-fakes` fills
+ALL gaps non-interactively; `--non-interactive` / no-TTY ERRORS on gaps. If any sample was inserted,
+normal export is **BLOCKED** unless `--allow-samples` (`--use-fakes` implies it), output is written to
+`cv.SAMPLE.pdf` / `cover-letter.SAMPLE.pdf`, and the document carries a visible
+**"[SAMPLE — REPLACE BEFORE SENDING]" watermark** — so a sample CV cannot reach an employer unedited,
+yet the user can still see it working. **Testable decision logic lives in `aa_core`** (NOT the
+coverage-excluded CLI): the pure `samples.rs` module — `decide(used_samples, allow_samples) ->
+ExportDecision` (the single un-bypassable gate, called once), `fill_with_samples` (real synthetic ids
+so the evidence ledger still passes — exactly why the SAMPLE guard is required), the `.SAMPLE.`
+filename helpers, and the `SAMPLE_WATERMARK` constant — covered to **100% lines, zero new pragmas**.
+The watermark is threaded as a SECOND typst `--input samples=true` (MasterCv schema **immutable**),
+drawn by all three templates; non-vacuity proven by `crates/core/tests/watermark_render.rs`
+(sentinel text present in sample PDFs, absent in normal, via `pdf-extract`). L5 STORY
+`crates/cli/tests/ingestion_story_l5.rs` drives the real binary (perf-delta gated, new tracked
+baseline `doc/perf/cli-ingestion-story-baseline.txt`). Full L1–L5; fmt + clippy `-D warnings`;
+100%-of-reachable coverage (workspace 99.38%, samples.rs/mine_json.rs 100%); synthetic PII-free
+fixtures only. **Acceptance MET:** the executable runs against the real DW_CV `cv.json` (output to
+/tmp only) producing both PDFs with name + email + 24 experiences intact (no watermark — the real CV
+is complete). EARS `R-INGEST-CLI-1..5`. Reviewer panel PASS (CORRECTNESS PASS; REGRESSION PASS after
+the COVERAGE.md re-sync). **DISCUSS-8b-1** (real-DW_CV `EmailAddress`/`PhoneNumber` contact synonyms
+added to the 8a miner so email survives) resolved; **DISCUSS-8b-2** (no real DW_CV in-repo — PII bar;
+the real-CV run is a manual /tmp acceptance, NOT a committed test) recorded.
+
 ## TODO (being built, in order — one PR per item)
 
 > Robustness drive so the tool works on real CVs. Prompted by the `applicant-advocate` CLI failing on
 > a real DW_CV `cv.json` (UTF-8 BOM + legacy PascalCase schema). The BOM half shipped as a hotfix
 > (PR #10); the rest is below. Plan + adversarial review: `doc/idea/applicant-advocate/` lineage.
-
-### 8b. Adaptive CV ingestion — CLI flow + sample-data system (structural honesty guard) · PRIORITY: HIGH
-Wire 8a into the CLI: try strict `MasterCv::from_json`; **on parse failure → mine**; then run
-`completeness()` and, on any empty IMPORTANT class, enter the missing-field flow. **Safe by
-construction:** interactive default is **leave-blank**; samples are strictly opt-in (`[s]` per field,
-or `--use-fakes` to fill all). Sample values carry a **`SAMPLE` sentinel**; normal export is **BLOCKED**
-if any SAMPLE node would render unless `--allow-samples`; `--use-fakes` implies it, writes
-`*.SAMPLE.pdf`/`.docx`, and renders a visible **"[SAMPLE — REPLACE BEFORE SENDING]" watermark**. So a
-sample CV can't reach an employer unedited, yet the user can still see it working. Prompts/IO live in
-the CLI (P-COV-4 exclusion); the SAMPLE guard + watermark are tested. EARS `R-INGEST-CLI-*`.
-Acceptance: the executable runs against the **real DW_CV `cv.json`** (output to /tmp) producing both
-PDFs with name/email/experience intact.
 
 ### 9. One-page cover letter · PRIORITY: HIGH
 Fix the 4-page cover letter (root cause: up to 3 full verbatim achievement descriptions + an 18pt
