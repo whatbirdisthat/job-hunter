@@ -31,7 +31,9 @@ pub struct Requirements {
 }
 
 impl NormalizedJob {
+    /// A leading UTF-8 BOM (`U+FEFF`) is tolerated.
     pub fn from_json(s: &str) -> Result<Self, CoreError> {
+        let s = s.trim_start_matches('\u{FEFF}');
         serde_json::from_str(s).map_err(|e| CoreError::NormalizedJobParse(e.to_string()))
     }
 
@@ -51,6 +53,14 @@ mod tests {
         let nj = NormalizedJob::from_json(j).unwrap();
         assert_eq!(nj.requirements.must_have, vec!["a"]);
         assert_eq!(nj.requirements.nice_to_have, vec!["b"]);
+    }
+
+    #[test]
+    fn tolerates_leading_utf8_bom() {
+        let j =
+            "\u{FEFF}{\"title\":\"X\",\"company\":\"Y\",\"requirements\":{\"mustHave\":[],\"niceToHave\":[]}}";
+        let nj = NormalizedJob::from_json(j).expect("BOM-prefixed JSON must parse");
+        assert_eq!(nj.title, "X");
     }
 
     #[test]

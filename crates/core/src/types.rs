@@ -165,8 +165,10 @@ pub struct Achievement {
 
 impl MasterCv {
     /// Parse-don't-validate entry point. A successful parse guarantees the schema's
-    /// required fields are present (serde enforces them).
+    /// required fields are present (serde enforces them). A leading UTF-8 BOM
+    /// (`U+FEFF`, written by some serializers, e.g. .NET) is tolerated.
     pub fn from_json(s: &str) -> Result<Self, CoreError> {
+        let s = s.trim_start_matches('\u{FEFF}');
         serde_json::from_str(s).map_err(|e| CoreError::MasterCvParse(e.to_string()))
     }
 
@@ -195,6 +197,14 @@ mod tests {
         let cv = MasterCv::from_json(MIN).unwrap();
         assert_eq!(cv.schema_version, "1.0.0");
         assert!(cv.experience.is_empty());
+    }
+
+    #[test]
+    fn tolerates_leading_utf8_bom() {
+        // Some serializers (e.g. .NET) prepend U+FEFF; it must not break parsing.
+        let with_bom = format!("\u{FEFF}{MIN}");
+        let cv = MasterCv::from_json(&with_bom).expect("BOM-prefixed JSON must parse");
+        assert_eq!(cv.schema_version, "1.0.0");
     }
 
     #[test]
