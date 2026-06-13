@@ -122,17 +122,65 @@ Three deterministic capabilities (Typst templates + Rust core + React UI), all r
   new pure modules 100%, no new pragmas); synthetic PII-free personas only. `ui` job stays
   continue-on-error per issue #2 (UI tests green locally, 24/24). **The backlog is now complete.**
 
-## TODO (being built)
+## TODO (being built, in order — one PR per item)
 
-### 7. Encryption-at-rest storage (DISCUSS-STORAGE, from #5) · PRIORITY: NOW
+> Robustness drive so the tool works on real CVs. Prompted by the `applicant-advocate` CLI failing on
+> a real DW_CV `cv.json` (UTF-8 BOM + legacy PascalCase schema). The BOM half shipped as a hotfix
+> (PR #10); the rest is below. Plan + adversarial review: `doc/idea/applicant-advocate/` lineage.
+
+### 8a. Adaptive CV ingestion — heuristic JSON miner + completeness (engine) · PRIORITY: NOW
+Make the Master CV schema **internal-only**: mine the fields the app needs out of **arbitrary CV
+JSON** instead of demanding the canonical shape. New private `crates/cvimport/src/mine_json.rs` + a
+public `import_cv_json(&serde_json::Value) -> Result<MasterCv, ImportError>` that **builds `MasterCv`
+directly** (NOT through cvimport's `pub(crate)` text `Segments`/`map::to_master_cv`, which can't carry
+contact fields and would force proficiency 3). Case-insensitive **synonym** key-matching for
+person/experience/skills (handles DW_CV, JSON-Resume, LinkedIn-export). **Pinned disambiguation:**
+highest-priority candidate array wins (others reported, no silent merge); newline-split a single
+achievement blob; coerce numeric dates → string; prefer a `person|basics|profile` object; non-English
+keys out of scope v1 (known limitation). Pure `completeness(&MasterCv)` reports empty IMPORTANT classes
+(`person.name`; ≥1 experience w/ jobTitle+businessName; ≥1 achievement; ≥1 skill) + ignored arrays.
+Reuse the `imp_exp_N` id convention + honesty defaults (never invent text). Synthetic PII-free
+fixtures incl. multi-candidate-array + numeric-date + minimal + empty. EARS `R-INGEST-*`.
+
+### 8b. Adaptive CV ingestion — CLI flow + sample-data system (structural honesty guard) · PRIORITY: HIGH
+Wire 8a into the CLI: try strict `MasterCv::from_json`; **on parse failure → mine**; then run
+`completeness()` and, on any empty IMPORTANT class, enter the missing-field flow. **Safe by
+construction:** interactive default is **leave-blank**; samples are strictly opt-in (`[s]` per field,
+or `--use-fakes` to fill all). Sample values carry a **`SAMPLE` sentinel**; normal export is **BLOCKED**
+if any SAMPLE node would render unless `--allow-samples`; `--use-fakes` implies it, writes
+`*.SAMPLE.pdf`/`.docx`, and renders a visible **"[SAMPLE — REPLACE BEFORE SENDING]" watermark**. So a
+sample CV can't reach an employer unedited, yet the user can still see it working. Prompts/IO live in
+the CLI (P-COV-4 exclusion); the SAMPLE guard + watermark are tested. EARS `R-INGEST-CLI-*`.
+Acceptance: the executable runs against the **real DW_CV `cv.json`** (output to /tmp) producing both
+PDFs with name/email/experience intact.
+
+### 9. One-page cover letter · PRIORITY: HIGH
+Fix the 4-page cover letter (root cause: up to 3 full verbatim achievement descriptions + an 18pt
+header + loose spacing, no page bound). Pin a content budget in `build_cover_letter` (≤3 strengths,
+each truncated to ≤200 chars; bound `whyRole`; render as a compact bulleted list, keep evidence ids)
+and tighten `templates/letter/classic-letter.typ` (~14pt header, tighter spacing; lists/tables
+allowed). **Deterministic page-count==1 test** by parsing the produced PDF in Rust (count `/Type /Page`
+via the vendored `lopdf`/`pdf-extract`), incl. a **long-content fixture**. Evidence-guard holds. EARS `R-CL-*`.
+
+### 10. DOCX output (CV + cover letter) · PRIORITY: HIGH
+New crate `crates/docx` (`aa-docx` → `aa-core`) hand-authoring `.docx` via `docx-rs` (dev-dep → runtime;
+MIT). **Shared contract to prevent PDF↔DOCX drift:** consumes the same `TailoredView`/`CoverLetter`
+structs and honors `CvTemplate::heading_vocabulary` (the ATS allow-list, R-ATS-5). CLI gains
+`--format pdf|docx|both`. Acceptance: **structural parity** — opens, round-trips via the cvimport DOCX
+reader, same section set + headings from `heading_vocabulary`, every evidence id/strength present. EARS `R-DOCX-*`.
+
+## LATER
+
+### 7. Encryption-at-rest storage (DISCUSS-STORAGE, from #5) · PRIORITY: LATER (demoted below 8–10)
 Swap the plaintext `JsonFileStore` for an **encrypted-at-rest** local store behind the EXISTING
-`TrackerStore` seam — SQLite + SQLCipher (or, if SQLCipher tooling is unavailable in the build
-environment, an authenticated-encryption file store: a vetted AEAD like XChaCha20-Poly1305 with a
-key derived via Argon2id from a user passphrase, recorded as the decision). The `crates/tracker` pure
-cores stay IO-free; only the store impl under `apps/desktop/src-tauri` changes. Key handling: never
-log/persist the key in plaintext; zeroize in memory; passphrase-unlock flow in the UI. Migrate any
-existing plaintext store on first unlock. **Run SENTINEL `/security-gate`.** Pin: a tampered/garbage
-ciphertext is rejected (not silently treated as empty); wrong passphrase → typed error, no data leak.
+`TrackerStore` seam — SQLite + SQLCipher (or, if unavailable in-mirror, an AEAD file store:
+XChaCha20-Poly1305 + Argon2id from a user passphrase, recorded as the decision). The `crates/tracker`
+pure cores stay IO-free; only the store impl under `apps/desktop/src-tauri` changes. Never log/persist
+the key; zeroize in memory; passphrase-unlock in the UI; migrate any plaintext store on first unlock.
+**Run SENTINEL `/security-gate`.** Pin: tampered/garbage ciphertext rejected (not treated as empty);
+wrong passphrase → typed error, no data leak. **NOTE:** the `item-7-encrypted-storage` WIP branch is
+**stale** (predates the CLI + render-builder refactor; it even deletes `crates/cli`) — rebase onto
+current main and discard that deletion when resumed; do not merge the WIP commit as-is.
 
 ## SURFACED FOLLOW-UPS (next backlog — flagged by the build cycles, not yet built)
 - **Live LLM adapter wiring** (from #3): the Ollama/BYO-key adapters are built but uncompiled in the
@@ -143,8 +191,9 @@ ciphertext is rejected (not silently treated as empty); wrong passphrase → typ
   (DISCUSS-DOM — current bar is synthetic fixtures, R6).
 - **Job-ad dedup + external reminders** (from #5): needs a dedup key in the job schema + an ADR for
   email/calendar/notification channels.
-- **CI infra:** make the `ui` job blocking once the runners can reach an npm registry (issue #2);
-  `CliRenderer` predictable-temp-name hardening; wire/retire the reserved `job.keywords` field.
+- **CI infra:** `ui` job is now blocking + green (issue #2 fixed via PR #8 `.npmrc`
+  `replace-registry-host=always`). Remaining: `CliRenderer` predictable-temp-name hardening;
+  wire/retire the reserved `job.keywords` field.
 
 ## Constraints (apply to every item)
 - No PII in the repo; synthetic data only in tests/CI (PII firewall).
