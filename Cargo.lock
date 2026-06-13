@@ -28,6 +28,7 @@ dependencies = [
 name = "aa-core"
 version = "0.1.0"
 dependencies = [
+ "lopdf",
  "pdf-extract",
  "serde",
  "serde_json",

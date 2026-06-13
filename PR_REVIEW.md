@@ -1,69 +1,52 @@
-# Adversarial PR Review — item #6 (templates + ATS-readability + keyword-coverage)
+# PR Review — item #9 · One-page cover letter
 
-**Range:** `main..item-6-templates-ats` · **Date:** 2026-06-13 · **Governance:** `pr-approval` (always-on adversarial gate; human merges after PASS)
-**Final verdict:** **PASS** (after one NEEDS_REVISION round — a HIGH correctness defect was found, fixed, and re-verified)
+**Range:** `main..item-9-one-page-letter` · **Date:** 2026-06-13 · **Governance:** `pr-approval`
+**Verdict:** **PASS** (max-severity rule over all lenses; one MEDIUM finding closed before sign-off)
 
-## Roles fanned out (each prompted to refute the change)
+This review gates; the human merges after verifying gates.
 
-| Role | Verdict | Notes |
+## What changed
+- `crates/core/src/lib.rs` — private `truncate_ellipsis(s, max_chars)` (unicode-safe, word-boundary,
+  panic-free) bounds each cover-letter strength to ≤200 chars and `whyRole` to ≤300 chars in
+  `build_cover_letter`; evidence ids untouched. New L1 unit tests for the helper + budget tests.
+- `templates/letter/classic-letter.typ` — 14pt header (was 18pt), tighter leading/spacing, strengths as
+  a compact bulleted `#list`. Item-8b SAMPLE watermark block byte-intact.
+- `crates/core/Cargo.toml` — `lopdf = { version = "0.38", default-features = false }` dev-dep (already in
+  Cargo.lock transitively via pdf-extract → no new vendored crate).
+- `crates/core/tests/cover_letter_one_page.rs` — deterministic page-count==1 proof via the PDF page tree
+  (lopdf), incl. a long-content fixture and a non-vacuous load-bearing coordinate.
+- `ROADMAP.md` — item #9 → DONE.
+
+## Adversarial panel
+
+| Lens | Verdict | Notes |
 |---|---|---|
-| CORRECTNESS | PASS (after fix) | Found 1 HIGH (keyword skill-blindspot) — fixed + re-reviewed clean |
-| REGRESSION | PASS | Render seam additive + backward-compatible; full suite 0 failures; items 1–5 untouched |
-| ARCHITECTURE | PASS | Pure cores (no IO), one-way dep graph, read-only, deterministic ordering |
-| PERFORMANCE | PASS | New STORY perf-delta gate non-vacuous (baseline 0.300s ≈3.5× observed 0.084s; not a copy; registered) |
-| SECURITY / PII | PASS | No PII, no new network/IO, no stuffing/fabrication, no template path-traversal (enum allow-list) |
-| DOCUMENT | PASS | EARS R-TPL/R-ATS/R-KWC traceable; plan §6.0 decisions match shipped artifacts; ROADMAP/pdf-look accurate |
+| CORRECTNESS | PASS | Could not break `truncate_ellipsis` (char-boundary safe incl. multi-byte whitespace; never exceeds budget for the real consts; deterministic). Raised one MEDIUM test-non-vacuity finding (now closed). Evidence-id preservation proven. |
+| REGRESSION | PASS | 8b watermark 5/5 green (empty `#list` renders fine); item-#3 rewrite path semantics unchanged (truncates seed text only, id preserved); empty-field `whyRole` still contains "this role"/"your team"; no new vendored package; coverage floor holds with no new pragmas. |
+| PERFORMANCE | PASS | No cover-letter perf baseline is regressed; the STORY perf-delta gate is one-directional (fires only on >3× slowdown) and content-shrink is strictly faster. `truncate_ellipsis` is O(n) for n≤300. |
+| SECURITY | PASS | lopdf is dev-dep only (absent from the non-dev graph), parses self-rendered PDFs in tests only; new fixture is synthetic/PII-free (example.com, lorem); strength text is serde-serialized into a Typst `--input data=` JSON value (escaped, no injection path). |
 
-## The HIGH finding (resolved)
+## Findings
 
-**CORRECTNESS #1 (HIGH, gating → FIXED).** `keyword_coverage::surfaced_evidence` intersected the
-heterogeneous `matching_evidence_ids` (skill `evidenceIds` + experience ids + achievement bullet ids)
-with `view.selected_ids` (achievement bullet ids ONLY). Consequence: any keyword matched via a declared
-**skill name** was wrongly reported MISSING, even though the Skills section renders unconditionally in
-both templates. Proven over persona-001: all declared skills → MISSING even at top_n=1000.
+| # | Severity | Locus | Status |
+|---|---|---|---|
+| 1 | MEDIUM | `tests/cover_letter_one_page.rs` — hostile fixture page-count arm was vacuous w.r.t. the truncation budget (template + 3-cap deliver one page even without truncation; overflow begins ~2000+ chars/strength). | **RESOLVED** — added `budget_is_load_bearing_raw_is_multipage_budgeted_is_one_page`: the SAME ~2600-char content renders ≥2 pages raw and ==1 page budgeted; removing `truncate_ellipsis` makes it FAIL (empirically verified). |
+| 2 | LOW | Empty-job `whyRole` reads "for the **this role** position at **your team**" (grammatically awkward). | Accepted — the existing scaffold-defaults test requires those exact literal tokens; cosmetic only. |
+| 3 | LOW | `truncate_ellipsis` returns `"…"` (1 char) for `max_chars == 0` on over-length input. | Accepted — helper is private with two call sites passing compile-time consts 200/300; `max_chars` is never 0/1; unreachable in production. |
 
-**Fix (approach A — tagged ids).** `matching.rs` gained `EvidenceKind {Skill, Experience, Achievement}` +
-`EvidenceId {id, kind}` + `matching_evidence_ids_kinded`; the existing `matching_evidence_ids` delegates
-(byte-identical output, so `coverage.rs` is unaffected). `surfaced_evidence` now gates **only**
-`Achievement` ids on `selected_ids`; `Skill`/`Experience` ids are always surfaced (those sections always
-render). Three regression tests added (skill-name FOUND; experience-token FOUND; skill-evidence always
-surfaced) — RED before the fix, GREEN after — and the must-not-regress invariant
-(`keyword_found_only_in_dropped_bullet_is_not_surfaced`) still passes.
+## Gates (re-run by FOUNDER after the fix)
+- `cargo fmt --all --check` → clean
+- `cargo clippy --all-targets -- -D warnings` → clean (default features; `--all-features` is a pre-existing
+  `embedded-typst` build break, DISCUSS-RENDER, not a CI gate)
+- `cargo test --workspace` → all suites green, 0 failures
+- `cargo test -p aa-core --test cover_letter_one_page` → 4 passed (raw ≥2 pages, budgeted ==1 page)
+- `cargo test -p aa-core --test watermark_render` → 5 passed (8b regression)
+- coverage floor `--ignore-filename-regex 'crates/cli/' --fail-under-lines 99` → **99.34% lines, exit 0**,
+  no new pragmas
 
-**Re-review:** CORRECTNESS re-ran adversarially → PASS. Defect fixed, invariant intact, delegation
-byte-identical, classification correct per namespace.
-
-## Residual non-gating items (SUGGESTIONs — not blocking)
-
-- **heading_vocabulary(self) ignores self** (render.rs): returns one hand-maintained list for both
-  templates. Harmless today (enum is exactly `{Classic, Compact}`, both emit that vocabulary, Modern
-  omitted); R-ATS-5 is explicitly scoped as a future-template guard. Re-check when a 3rd variant is added.
-- **EmbeddedRenderer** does not override `render_cv_with_template` → under the (CI-deferred,
-  non-default) `embedded-typst` feature a Compact selection silently renders Classic. Documented
-  deferral; the shipping CLI path is correct. Override (or error) when the embedded backend ships.
-- **Evidence-id provenance collision** (matching.rs): a skill `evidenceIds` string that coincides with a
-  pruned achievement bullet id would display that pruned id as provenance. Cosmetic only (never a wrong
-  FOUND/MISSING verdict); 0 occurrences in real fixtures (all persona skills carry empty evidenceIds).
-- **CliRenderer temp-file** (pre-existing item-1 code, out of scope): predictable repo-root temp name;
-  worth a future hardening pass to a private temp dir.
-- **KAIZEN:** `job.keywords` is parsed but unused by coverage and capability C (keyed off
-  `requirements`) — a reserved dead-contract field to wire or document in a future cycle.
-
-## What was NOT independently reviewed
-
-- The React/Vitest UI suite (`apps/desktop`) runs under the `ui` CI job, which is `continue-on-error`
-  (issue #2 — runners cannot reach any npm registry). UI tests were confirmed **passing locally** (24/24)
-  but the green is self-attested, not observed by the CI gate. The user-facing journey is independently
-  proven by the Rust command-level STORY (L5).
-
-## Gates (verified by FOUNDER directly, post-fix)
-
-```
-cargo fmt --all --check                               → exit 0
-cargo clippy --workspace --all-targets -- -D warnings → exit 0
-cargo test --workspace                                → 0 failures (all bins)
-cargo llvm-cov --workspace --fail-under-lines 99      → TOTAL 99.26% lines (ats.rs 100%, keyword_coverage.rs 100%)
-STORY L5 templates_ats_story_l5                       → 0.084s ≤ 0.300s baseline (perf-delta gate green)
-typst compile templates/cv/compact.typ … persona-001 → valid PDF (49528 bytes); classic still renders
-npm test (apps/desktop)                               → 24/24 (local; ui job non-blocking per issue #2)
-```
+## Not reviewed
+- `--all-features` / `embedded-typst` path (pre-existing DISCUSS-RENDER build break in this mirror; not a
+  CI gate — items 1–8b shipped under the default-feature gate).
+- The `ui` (vitest) job — unaffected by this Rust/Typst-only change.
+- Visual/typographic fidelity beyond page count (out of scope; design tokens matched to
+  `doc/design/pdf-look.md`).

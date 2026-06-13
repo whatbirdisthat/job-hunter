@@ -55,30 +55,39 @@
   font: ("Liberation Sans", "Helvetica Neue", "Arial", "DejaVu Sans"),
   size: 10.5pt, fill: ink,
 )
-#set par(justify: false, leading: 0.7em, spacing: 9pt)
+// item 9: tightened leading/spacing so greeting + why-role + bulleted strengths +
+// close reliably fit one A4 page (content is bounded in build_cover_letter too).
+#set par(justify: false, leading: 0.55em, spacing: 6pt)
 
 // ── header: candidate name + rule ────────────────────────────────────────────
-#text(size: 18pt, weight: 700)[#data.at("candidateName", default: "")]
-#v(4pt)
+// item 9: 14pt header (down from 18pt) to reclaim vertical space.
+#text(size: 14pt, weight: 700)[#data.at("candidateName", default: "")]
+#v(3pt)
 #line(length: 100%, stroke: 0.5pt + rule)
-#v(8pt)
+#v(6pt)
 
 // ── greeting (scaffold) ──────────────────────────────────────────────────────
 #text(size: 10.5pt)[#data.at("greeting", default: "")]
-#v(6pt)
+#v(4pt)
 
 // ── why this role/company (scaffold) ─────────────────────────────────────────
-#block(below: 8pt)[#text(fill: ink)[#data.at("whyRole", default: "")]]
+#block(below: 6pt)[#text(fill: ink)[#data.at("whyRole", default: "")]]
 
-// ── strength paragraphs (each carries its evidence id, faint) ────────────────
-#for s in data.at("strengths", default: ()) {
-  block(below: 8pt)[
-    #text(size: 10.5pt)[#s.at("text", default: "")]
-    #if s.at("sourceEvidenceId", default: "") != "" [
-      #h(4pt)#text(size: 7pt, fill: faint)[[evidence: #s.sourceEvidenceId]]
-    ]
-  ]
-}
+// ── strengths — a compact bulleted list (each carries its evidence id, faint) ─
+// item 9: render strengths as a tight bulleted list rather than full paragraphs.
+#block(below: 6pt)[
+  #list(
+    spacing: 5pt,
+    indent: 2pt,
+    body-indent: 4pt,
+    ..data.at("strengths", default: ()).map(s => [
+      #text(size: 10.5pt)[#s.at("text", default: "")]
+      #if s.at("sourceEvidenceId", default: "") != "" [
+        #h(4pt)#text(size: 7pt, fill: faint)[[evidence: #s.sourceEvidenceId]]
+      ]
+    ])
+  )
+]
 
 // ── close ────────────────────────────────────────────────────────────────────
 #v(2pt)
